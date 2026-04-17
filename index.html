@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>納品書管理 | mofmofu</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+:root{
+  --bg:#f5f4f0;--sur:#fff;--sur2:#faf9f7;--bdr:#e2ddd6;--bdr2:#ccc6bc;
+  --tx:#2c2a26;--tx2:#6b6560;--tx3:#9b958e;
+  --ac:#4a7c59;--acl:#e8f0eb;
+  --red:#c0392b;--redl:#fdf0ef;
+  --blue:#2c6e9e;--bluel:#eef4fa;
+  --pur:#7c3aed;--purl:#f3f0ff;
+  --org:#c05621;--orgl:#fff3e8;
+  --yel:#b45309;--yell:#fef8ee;
+  --sh:0 1px 3px rgba(0,0,0,.08);--shm:0 4px 14px rgba(0,0,0,.11);
+  --r:6px;--rl:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--tx);font-size:13px;min-height:100vh;}
+
+/* Header */
+.hdr{background:var(--sur);border-bottom:1px solid var(--bdr);padding:0 20px;display:flex;align-items:center;height:52px;position:sticky;top:0;z-index:300;box-shadow:var(--sh);}
+.logo{font-size:15px;font-weight:700;color:var(--ac);letter-spacing:.05em;}
+.sub{font-size:12px;color:var(--tx3);border-left:1px solid var(--bdr);padding-left:10px;margin-left:10px;}
+.hdr-r{margin-left:auto;display:flex;gap:8px;}
+
+/* Nav */
+.nav{background:var(--sur);border-bottom:1px solid var(--bdr);display:flex;padding:0 20px;position:sticky;top:52px;z-index:200;overflow-x:auto;}
+.nav-btn{padding:12px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;font-weight:500;color:var(--tx2);border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;}
+.nav-btn.on{color:var(--ac);border-bottom-color:var(--ac);}
+.nav-btn:hover:not(.on){color:var(--tx);background:var(--sur2);}
+
+/* Layout */
+.wrap{max-width:1200px;margin:0 auto;padding:20px 16px;}
+.page{display:none;}.page.on{display:block;}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:none;border-radius:var(--r);cursor:pointer;font-family:inherit;font-size:12px;font-weight:500;transition:all .14s;white-space:nowrap;}
+.btn-p{background:var(--ac);color:#fff;}.btn-p:hover{background:#3d6b4c;}
+.btn-s{background:var(--sur);color:var(--tx2);border:1px solid var(--bdr2);}.btn-s:hover{background:var(--sur2);}
+.btn-d{background:var(--redl);color:var(--red);border:1px solid #f5c6c2;}.btn-d:hover{background:#fce4e2;}
+.btn-sm{padding:4px 10px;font-size:11px;}
+.ibtn{width:26px;height:26px;padding:0;background:none;border:1px solid var(--bdr);border-radius:4px;cursor:pointer;color:var(--tx3);display:inline-flex;align-items:center;justify-content:center;font-size:12px;transition:all .12s;}
+.ibtn:hover{background:var(--redl);color:var(--red);border-color:#f5c6c2;}
+
+/* Cards */
+.card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--rl);box-shadow:var(--sh);overflow:hidden;margin-bottom:16px;}
+.card-hdr{padding:12px 16px;border-bottom:1px solid var(--bdr);background:var(--sur2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.card-ttl{font-size:12px;font-weight:700;color:var(--tx2);letter-spacing:.05em;display:flex;align-items:center;gap:6px;}
+.card-ttl::before{content:'';display:inline-block;width:3px;height:12px;background:var(--ac);border-radius:2px;}
+.card-body{padding:16px;}
+
+/* Form groups */
+.fg{display:flex;flex-direction:column;gap:3px;}
+.fg label{font-size:11px;font-weight:500;color:var(--tx2);}
+.fg label .req{color:var(--red);}
+.fg input,.fg select,.fg textarea{width:100%;border:1px solid var(--bdr2);border-radius:var(--r);padding:7px 9px;font-family:inherit;font-size:13px;color:var(--tx);background:var(--sur);transition:border-color .12s,box-shadow .12s;}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 2px var(--acl);}
+.fg input[type=number]{text-align:right;}
+.fg input.calc-out{background:var(--acl);color:var(--ac);font-weight:700;cursor:default;}
+.fg input.price-auto{background:var(--bluel);color:var(--blue);font-weight:600;}
+.fg input:disabled{background:var(--sur2);color:var(--tx3);cursor:default;}
+.grid{display:grid;gap:10px;}
+
+/* Badges */
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;}
+.bk{background:var(--acl);color:var(--ac);}.bd{background:var(--purl);color:var(--pur);}
+.bc{background:var(--bluel);color:var(--blue);}.bsw{background:var(--yell);color:var(--yel);}
+.by{background:var(--orgl);color:var(--org);}.bso{background:var(--redl);color:var(--red);}
+
+/* Process pill */
+.proc-pill{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r);font-size:12px;font-weight:700;border:1.5px solid;}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--tx2);background:var(--sur2);border-bottom:1px solid var(--bdr);white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--bg);transition:background .1s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:var(--sur2);}
+td{padding:8px 12px;vertical-align:middle;}
+td.r{text-align:right;font-variant-numeric:tabular-nums;}
+td.mono{font-family:'Courier New',monospace;font-size:11px;}
+tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr);}
+
+/* Summary cross table */
+.sum-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.sum-tbl th{padding:7px 10px;background:var(--sur2);border:1px solid var(--bdr);text-align:center;font-size:11px;font-weight:600;color:var(--tx2);white-space:nowrap;}
+.sum-tbl td{padding:6px 10px;border:1px solid var(--bdr);text-align:right;}
+.sum-tbl td.lbl{text-align:left;font-weight:500;white-space:nowrap;}
+.sum-tbl tr.tot td{background:var(--acl);font-weight:700;color:var(--ac);}
+.sum-tbl .has{color:var(--tx);}
+.sum-tbl .nil{color:var(--tx3);}
+
+/* Filter bar */
+.fbar{padding:10px 14px;border-bottom:1px solid var(--bdr);display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#fdfcfb;}
+.fbar input,.fbar select{border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 8px;font-family:inherit;font-size:12px;background:var(--sur);color:var(--tx);}
+.fbar input:focus,.fbar select:focus{outline:none;border-color:var(--ac);}
+
+/* Stats row */
+.stats{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.sc{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 16px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);min-width:120px;}
+.si{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;}
+.sl{font-size:11px;color:var(--tx3);}
+.sv{font-size:15px;font-weight:700;}
+
+/* Year nav */
+.ynav{display:flex;align-items:center;gap:10px;}
+.ynav button{width:28px;height:28px;border:1px solid var(--bdr2);border-radius:var(--r);background:var(--sur);cursor:pointer;font-size:14px;color:var(--tx2);}
+.ynav button:hover{background:var(--sur2);}
+.ynav .yl{font-size:14px;font-weight:700;min-width:60px;text-align:center;}
+
+/* Tab switch inside summary */
+.inner-tabs{display:flex;gap:2px;background:var(--bdr);border-radius:var(--r);padding:3px;width:fit-content;margin-bottom:14px;}
+.itab{padding:5px 14px;border:none;background:none;border-radius:4px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:500;color:var(--tx2);transition:all .14s;}
+.itab.on{background:var(--sur);color:var(--tx);box-shadow:var(--sh);}
+
+/* Empty */
+.empty{text-align:center;padding:32px;color:var(--tx3);}
+.empty-icon{font-size:28px;margin-bottom:6px;}
+
+/* Modal */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}
+.ov.hidden{display:none;}
+.modal{background:var(--sur);border-radius:var(--rl);box-shadow:0 20px 60px rgba(0,0,0,.2);width:100%;max-width:500px;animation:su .18s ease;max-height:90vh;display:flex;flex-direction:column;}
+@keyframes su{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.mhdr{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.mttl{font-size:14px;font-weight:700;}
+.mbdy{padding:18px;display:flex;flex-direction:column;gap:11px;overflow-y:auto;}
+.mftr{padding:12px 18px;border-top:1px solid var(--bdr);display:flex;justify-content:flex-end;gap:8px;background:var(--sur2);border-radius:0 0 var(--rl) var(--rl);flex-shrink:0;}
+
+/* Toast */
+.toast{position:fixed;bottom:22px;right:22px;background:var(--tx);color:#fff;padding:9px 16px;border-radius:var(--r);font-size:13px;box-shadow:var(--shm);z-index:9999;animation:fu .18s ease;}
+.toast.hidden{display:none;}
+@keyframes fu{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+/* Hint text */
+.hint{font-size:11px;color:var(--tx3);margin-top:3px;}
+.new-price-badge{display:inline-block;background:var(--bluel);color:var(--blue);font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:6px;}
+
+@media(max-width:700px){.stats{display:none;}}
+</style>
+</head>
+<body>
+
+<!-- ローディングオーバーレイ -->
+<div id="loading-ov" style="position:fixed;inset:0;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;z-index:9000;flex-direction:column;gap:14px;">
+  <div style="font-size:32px;">⏳</div>
+  <div style="font-size:14px;color:#6b6560;">データを読み込み中...</div>
+</div>
+
+<header class="hdr">
+  <span class="logo">📦 mofmofu</span>
+  <span class="sub">納品書管理システム</span>
+  <div class="hdr-r">
+    <button class="btn btn-s btn-sm" onclick="exportCSV()">⬇ CSV</button>
+  </div>
+</header>
+
+<nav class="nav" id="nav">
+  <button class="nav-btn on"  onclick="goPage('entry')">📝 納品書入力</button>
+  <button class="nav-btn"     onclick="goPage('history')">📋 納品履歴</button>
+  <button class="nav-btn"     onclick="goPage('summary')">📊 月別集計</button>
+  <button class="nav-btn"     onclick="goPage('master')">⚙ マスタ管理</button>
+</nav>
+
+<div class="wrap">
+
+  <!-- ═══ PAGE: ENTRY ═══ -->
+  <div class="page on" id="page-entry">
+    <div class="stats" id="entry-stats"></div>
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-ttl">納品書 新規登録</span>
+      </div>
+      <div class="card-body">
+        <!-- Row 1: factory + date -->
+        <div class="grid" style="grid-template-columns:220px 180px auto 1fr;align-items:end;margin-bottom:14px;gap:12px;">
+          <div class="fg">
+            <label>工場名 <span class="req">*</span></label>
+            <select id="ef_factory" onchange="onEFFactory()">
+              <option value="">— 工場を選択 —</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>納品日 <span class="req">*</span></label>
+            <input type="date" id="ef_date">
+          </div>
+          <div id="ef_proc_pill" style="padding-bottom:1px;"></div>
+          <div></div>
+        </div>
+        <!-- Row 2+: dynamic -->
+        <div id="ef_dynamic"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-ttl">最近の納品記録</span>
+        <button class="btn btn-s btn-sm" onclick="goPage('history')">すべて見る →</button>
+      </div>
+      <div id="entry-recent"></div>
+    </div>
+  </div>
+
+  <!-- ═══ PAGE: HISTORY ═══ -->
+  <div class="page" id="page-history">
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-ttl">納品履歴</span>
+        <span id="hist-cnt" style="font-size:11px;color:var(--tx3);"></span>
+      </div>
+      <div class="fbar">
+        <input type="text" id="ht_q" placeholder="品番・工場・備考…" oninput="renderHistory()" style="width:160px;">
+        <input type="date" id="ht_from" onchange="renderHistory()">
+        <span style="font-size:11px;color:var(--tx3);">〜</span>
+        <input type="date" id="ht_to"   onchange="renderHistory()">
+        <select id="ht_proc" onchange="renderHistory()"><option value="">全工程</option></select>
+        <select id="ht_fac"  onchange="renderHistory()"><option value="">全工場</option></select>
+        <button class="btn btn-s btn-sm" onclick="clearHF()">クリア</button>
+      </div>
+      <div id="hist-table"></div>
+    </div>
+  </div>
+
+  <!-- ═══ PAGE: SUMMARY ═══ -->
+  <div class="page" id="page-summary">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+      <div class="ynav">
+        <button onclick="sumYear--;renderSummary()">‹</button>
+        <span class="yl" id="sum-yr"></span>
+        <button onclick="sumYear++;renderSummary()">›</button>
+      </div>
+    </div>
+    <div class="stats" id="sum-stats"></div>
+
+    <!-- Cross tables: 工程別 + 工場別 -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-ttl">工程別 × 月別 金額サマリー</span></div>
+      <div style="overflow-x:auto;padding:16px;" id="sum-proc-tbl"></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-ttl">工場別 × 月別 金額サマリー</span></div>
+      <div style="overflow-x:auto;padding:16px;" id="sum-fac-tbl"></div>
+    </div>
+
+    <!-- Detail accordion -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-ttl">工場別 明細一覧</span></div>
+      <div id="sum-detail"></div>
+    </div>
+  </div>
+
+  <!-- ═══ PAGE: MASTER ═══ -->
+  <div class="page" id="page-master">
+
+    <!-- Factory master -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-ttl">工場マスタ</span>
+        <button class="btn btn-p btn-sm" onclick="openFacModal()">＋ 工場を追加</button>
+      </div>
+      <div id="fac-table"></div>
+    </div>
+
+    <!-- Item master -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-ttl">品番マスタ</span>
+        <button class="btn btn-p btn-sm" onclick="openItemModal()">＋ 品番を追加</button>
+      </div>
+      <div class="fbar">
+        <input type="text" id="im_q" placeholder="品番・商品名…" oninput="renderItemTable()" style="width:180px;">
+      </div>
+      <div id="item-table"></div>
+    </div>
+
+    <!-- Unit price master -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-ttl">単価マスタ（工場 × 品番）</span>
+        <button class="btn btn-p btn-sm" onclick="openPriceModal()">＋ 単価を登録</button>
+      </div>
+      <div class="fbar">
+        <select id="pm_fac" onchange="renderPriceTable()" style="border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 8px;font-family:inherit;font-size:12px;">
+          <option value="">全工場</option>
+        </select>
+        <input type="text" id="pm_q" placeholder="品番で絞り込み…" oninput="renderPriceTable()" style="border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 8px;font-family:inherit;font-size:12px;width:160px;">
+      </div>
+      <div id="price-table"></div>
+    </div>
+
+  </div>
+</div><!-- /wrap -->
+
+<!-- Modal -->
+<div class="ov hidden" id="ov" onclick="ovClick(event)">
+  <div class="modal">
+    <div class="mhdr">
+      <span class="mttl" id="mttl">登録</span>
+      <button class="ibtn" onclick="closeModal()">✕</button>
+    </div>
+    <div class="mbdy" id="mbdy"></div>
+    <div class="mftr">
+      <button class="btn btn-s" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-p" id="m-save" onclick="execModalSave()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+/* ════════════════════════════════════════════════════
+   ★ SUPABASE 設定 ← ここを書き換えてください
+   Supabase ダッシュボード → Settings → API から確認
+════════════════════════════════════════════════════ */
+const SUPABASE_URL      = 'https://nojwspsdaoumknekpyfv.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_8GeRGDFJhKccfMgmBWRglQ_Odghn9pk';
+
+/* ════════════════════════════════════════════════════
+   PROCESS META
+════════════════════════════════════════════════════ */
+const PM = {
+  knit: {label:'編み',  icon:'🧶',badge:'bk', col:'var(--ac)', bg:'var(--acl)',  unit:'kg'},
+  dye:  {label:'染色',  icon:'🎨',badge:'bd', col:'var(--pur)',bg:'var(--purl)', unit:'kg'},
+  cut:  {label:'裁断',  icon:'✂️',badge:'bc', col:'var(--blue)',bg:'var(--bluel)',unit:'枚'},
+  sew:  {label:'縫製',  icon:'🪡',badge:'bsw',col:'var(--yel)',bg:'var(--yell)', unit:'枚'},
+  yarn: {label:'糸',    icon:'🧵',badge:'by', col:'var(--org)',bg:'var(--orgl)', unit:'kg'},
+  socks:{label:'靴下',  icon:'🧦',badge:'bso',col:'var(--red)',bg:'var(--redl)', unit:'足'},
+};
+
+const EXTRA = {
+  knit: [],
+  dye:  [{key:'color_no', label:'色番', ph:'例：#12'}],
+  cut:  [],
+  sew:  [],
+  yarn: [{key:'yarn_count',label:'番手',ph:'例：2/48'}],
+  socks:[{key:'item_name', label:'商品名',ph:'例：ベビーソックス'}],
+};
+
+/* ════════════════════════════════════════════════════
+   DEFAULT FACTORY DATA
+════════════════════════════════════════════════════ */
+const DEF_FAC = [
+  {id:'f1',name:'坂本繊維（編み）', process:'knit', unit:'kg'},
+  {id:'f2',name:'V-TEC',            process:'dye',  unit:'kg'},
+  {id:'f3',name:'松田染工場',        process:'dye',  unit:'kg'},
+  {id:'f4',name:'神共ニット（裁断）',process:'cut',  unit:'枚'},
+  {id:'f5',name:'コンセプト',        process:'sew',  unit:'枚'},
+  {id:'f6',name:'メリット',          process:'sew',  unit:'枚'},
+  {id:'f7',name:'坂本繊維（糸）',    process:'yarn', unit:'kg'},
+  {id:'f8',name:'坂本繊維（靴下）',  process:'socks',unit:'足'},
+];
+
+/* ════════════════════════════════════════════════════
+   SUPABASE CLIENT
+════════════════════════════════════════════════════ */
+let _sb = null;
+if(SUPABASE_URL !== 'Yhttps://nojwspsdaoumknekpyfv.supabase.co'){
+  _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} else {
+  document.getElementById('loading-ov').innerHTML=`
+    <div style="background:#fff;border:1px solid #e2ddd6;border-radius:12px;padding:32px 36px;max-width:480px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.12);">
+      <div style="font-size:36px;margin-bottom:14px;">⚙️</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:10px;color:#2c2a26;">Supabase の設定が必要です</div>
+      <div style="font-size:13px;color:#6b6560;line-height:1.9;text-align:left;">
+        HTMLファイルをテキストエディタで開き、上部の<br>
+        <code style="background:#f5f4f0;padding:2px 7px;border-radius:4px;font-size:12px;">SUPABASE_URL</code> と
+        <code style="background:#f5f4f0;padding:2px 7px;border-radius:4px;font-size:12px;">SUPABASE_ANON_KEY</code><br>
+        を書き換えてください。<br><br>
+        取得場所：Supabase ダッシュボード<br>
+        → プロジェクト選択 → Settings → API
+      </div>
+    </div>`;
+}
+
+/* ════════════════════════════════════════════════════
+   DATA (in-memory)
+════════════════════════════════════════════════════ */
+let deliveries=[], factories=[], items=[], prices=[];
+let sumYear=new Date().getFullYear();
+let _modalSaveFn=null;
+
+const uid=()=>Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,4).toUpperCase();
+const today=()=>new Date().toISOString().slice(0,10);
+const ym=s=>s?s.slice(0,7):'';
+const fmt=n=>{const v=parseInt(n);return isNaN(v)?'—':v.toLocaleString('ja-JP');};
+const fq=n=>{const v=parseFloat(n);if(isNaN(v)||v===0)return'—';return v.toLocaleString('ja-JP',{maximumFractionDigits:3});};
+const calcAmt=(q,p)=>{const a=Math.round(parseFloat(q)*parseFloat(p));return isNaN(a)?'':a;};
+
+/* ════════════════════════════════════════════════════
+   DATA LAYER  (Supabase)
+════════════════════════════════════════════════════ */
+async function loadAll(){
+  if(!_sb) return;
+  try {
+    const [d,f,i,p] = await Promise.all([
+      _sb.from('deliveries').select('*').order('created_at',{ascending:false}),
+      _sb.from('factories').select('*').order('name'),
+      _sb.from('items').select('*').order('item_code'),
+      _sb.from('prices').select('*'),
+    ]);
+    if(d.error) throw d.error;
+    if(f.error) throw f.error;
+    if(i.error) throw i.error;
+    if(p.error) throw p.error;
+    deliveries = d.data || [];
+    items      = i.data || [];
+    prices     = p.data || [];
+    if(f.data && f.data.length){
+      factories = f.data;
+    } else {
+      factories = JSON.parse(JSON.stringify(DEF_FAC));
+      await _sb.from('factories').insert(factories);
+    }
+  } catch(e){
+    console.error(e);
+    toast('❌ DB接続エラー: '+e.message, 5000);
+  }
+}
+
+function getPrice(fac_id, item_code){
+  if(!fac_id||!item_code) return '';
+  const p=prices.find(x=>x.fac_id===fac_id && x.item_code===item_code);
+  return p?p.unit_price:'';
+}
+
+async function upsertPrice(fac_id, item_code, unit_price){
+  if(!_sb||!fac_id||!item_code||unit_price==='') return;
+  const up=parseFloat(unit_price);
+  if(isNaN(up)||up<=0) return;
+  const exist=prices.find(x=>x.fac_id===fac_id&&x.item_code===item_code);
+  if(exist){
+    exist.unit_price=up;
+    await _sb.from('prices').update({unit_price:up}).eq('id',exist.id);
+  } else {
+    const rec={id:uid(),fac_id,item_code,unit_price:up};
+    prices.push(rec);
+    await _sb.from('prices').insert(rec);
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   NAVIGATION
+════════════════════════════════════════════════════ */
+const PAGES=['entry','history','summary','master'];
+function goPage(id){
+  PAGES.forEach((p,i)=>{
+    document.getElementById('page-'+p).classList.toggle('on',p===id);
+    document.querySelectorAll('.nav-btn')[i].classList.toggle('on',p===id);
+  });
+  if(id==='entry')   renderEntry();
+  if(id==='history') renderHistory();
+  if(id==='summary') renderSummary();
+  if(id==='master')  renderMaster();
+}
+
+/* ════════════════════════════════════════════════════
+   ENTRY PAGE
+════════════════════════════════════════════════════ */
+function renderEntry(){
+  const tot=deliveries.reduce((s,d)=>s+(parseInt(d.amount)||0),0);
+  const mm=today().slice(0,7);
+  const mtot=deliveries.filter(d=>ym(d.date)===mm).reduce((s,d)=>s+(parseInt(d.amount)||0),0);
+  document.getElementById('entry-stats').innerHTML=`
+    <div class="sc"><div class="si" style="background:#f0f0ed;">📦</div>
+      <div><div class="sl">累計納品金額</div><div class="sv">¥${fmt(tot)}</div></div></div>
+    <div class="sc"><div class="si" style="background:var(--acl);">📅</div>
+      <div><div class="sl">今月（${mm}）</div><div class="sv" style="color:var(--ac);">¥${fmt(mtot)}</div></div></div>
+    <div class="sc"><div class="si" style="background:#f0f0ed;">📋</div>
+      <div><div class="sl">総件数</div><div class="sv">${deliveries.length}件</div></div></div>`;
+
+  const sel=document.getElementById('ef_factory');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— 工場を選択 —</option>'+
+    factories.map(f=>`<option value="${f.id}" ${f.id===cur?'selected':''}>${f.name}</option>`).join('');
+  if(!document.getElementById('ef_date').value) document.getElementById('ef_date').value=today();
+  if(cur) onEFFactory(true);
+
+  document.getElementById('entry-recent').innerHTML=delivTableHTML(deliveries.slice(0,8),false);
+}
+
+function onEFFactory(keep){
+  const fid=document.getElementById('ef_factory').value;
+  const fac=factories.find(f=>f.id===fid);
+  const pill=document.getElementById('ef_proc_pill');
+  const dyn=document.getElementById('ef_dynamic');
+  if(!fac){pill.innerHTML='';dyn.innerHTML='';return;}
+
+  const p=PM[fac.process]||{};
+  pill.innerHTML=`<div class="proc-pill" style="color:${p.col};border-color:${p.col};background:${p.bg};">${p.icon} ${p.label} / ${fac.unit}単価</div>`;
+
+  const extra=EXTRA[fac.process]||[];
+  const dlId='dl_ef';
+  const dl=`<datalist id="${dlId}">${items.map(i=>`<option value="${i.item_code}">${i.item_name||''}</option>`).join('')}</datalist>`;
+
+  const prevCode=keep?(document.getElementById('ef_item_code')?.value||''):'';
+  const prevUp  =keep?(document.getElementById('ef_unit_price')?.value||''):'';
+
+  const extraHTML=extra.map(e=>`
+    <div class="fg"><label>${e.label}</label>
+      <input type="text" id="ef_${e.key}" placeholder="${e.ph||''}" value="${keep?(document.getElementById('ef_'+e.key)?.value||''):''}">
+    </div>`).join('');
+
+  const mainCols=3+extra.length;
+  dyn.innerHTML=`${dl}
+  <div class="grid" style="grid-template-columns:repeat(${Math.min(mainCols,5)},1fr);margin-bottom:10px;">
+    <div class="fg">
+      <label>品番 <span class="req">*</span></label>
+      <input type="text" id="ef_item_code" list="${dlId}" placeholder="例：baby-leg-k-1"
+        value="${prevCode}" oninput="onEFItemCode()">
+    </div>
+    <div class="fg">
+      <label>カラー / 色番</label>
+      <input type="text" id="ef_color" placeholder="例：オフ白" value="${keep?(document.getElementById('ef_color')?.value||''):''}">
+    </div>
+    <div class="fg">
+      <label>サイズ / 属性</label>
+      <input type="text" id="ef_attr" placeholder="例：50-70" value="${keep?(document.getElementById('ef_attr')?.value||''):''}">
+    </div>
+    ${extraHTML}
+  </div>
+  <div class="grid" style="grid-template-columns:120px 180px 160px 1fr auto;align-items:end;gap:10px;">
+    <div class="fg">
+      <label>数量（${fac.unit}）<span class="req">*</span></label>
+      <input type="number" id="ef_qty" placeholder="0" min="0" step="any"
+        value="${keep?(document.getElementById('ef_qty')?.value||''):''}" oninput="calcEF()">
+    </div>
+    <div class="fg">
+      <label>単価（円/${fac.unit}）<span id="ef_up_badge"></span></label>
+      <input type="number" id="ef_unit_price" placeholder="品番選択で自動入力" min="0"
+        value="${prevUp}" oninput="calcEF()">
+      <span class="hint" id="ef_up_hint"></span>
+    </div>
+    <div class="fg">
+      <label>金額（円）</label>
+      <input type="number" id="ef_amount" class="calc-out" placeholder="自動計算" readonly>
+    </div>
+    <div class="fg">
+      <label>備考</label>
+      <input type="text" id="ef_memo" placeholder="ロット・メモなど"
+        value="${keep?(document.getElementById('ef_memo')?.value||''):''}">
+    </div>
+    <div style="padding-bottom:1px;">
+      <button class="btn btn-p" id="save-entry-btn" onclick="saveEntry()">＋ 追加</button>
+    </div>
+  </div>`;
+
+  if(prevCode) onEFItemCode();
+  calcEF();
+}
+
+function onEFItemCode(){
+  const fid=document.getElementById('ef_factory')?.value;
+  const code=(document.getElementById('ef_item_code')?.value||'').trim();
+  const up=getPrice(fid,code);
+  const upEl=document.getElementById('ef_unit_price');
+  const hint=document.getElementById('ef_up_hint');
+  const badge=document.getElementById('ef_up_badge');
+  if(upEl && up!==''){
+    upEl.value=up;
+    upEl.classList.add('price-auto');
+    if(hint) hint.textContent=`マスタ単価：¥${fmt(up)}`;
+    if(badge) badge.innerHTML=`<span class="new-price-badge">マスタから自動入力</span>`;
+  } else {
+    if(upEl) upEl.classList.remove('price-auto');
+    if(hint) hint.textContent=code?'この品番の単価は未登録です':'';
+    if(badge) badge.innerHTML='';
+  }
+  calcEF();
+}
+
+function calcEF(){
+  const qty=document.getElementById('ef_qty')?.value;
+  const up=document.getElementById('ef_unit_price')?.value;
+  const el=document.getElementById('ef_amount');
+  if(el) el.value=calcAmt(qty,up)!==''?calcAmt(qty,up):'';
+}
+
+async function saveEntry(){
+  if(!_sb){toast('❌ Supabase未設定');return;}
+  const fid=document.getElementById('ef_factory')?.value;
+  const fac=factories.find(f=>f.id===fid);
+  const date=document.getElementById('ef_date')?.value||'';
+  const code=(document.getElementById('ef_item_code')?.value||'').trim();
+  if(!fac){toast('❌ 工場を選択してください');return;}
+  if(!date){toast('❌ 納品日を入力してください');return;}
+  if(!code){toast('❌ 品番を入力してください');return;}
+
+  const qty=document.getElementById('ef_qty')?.value||'';
+  const up=document.getElementById('ef_unit_price')?.value||'';
+  const amt=calcAmt(qty,up);
+  const extra={};
+  (EXTRA[fac.process]||[]).forEach(e=>{
+    const el=document.getElementById('ef_'+e.key);if(el)extra[e.key]=el.value.trim();
+  });
+  const rec={
+    id:uid(),fac_id:fid,fac_name:fac.name,process:fac.process,date,
+    item_code:code,
+    color:document.getElementById('ef_color')?.value?.trim()||'',
+    attr:document.getElementById('ef_attr')?.value?.trim()||'',
+    ...extra,
+    qty,unit:fac.unit,unit_price:up,amount:amt!==''?amt:'',
+    memo:document.getElementById('ef_memo')?.value?.trim()||'',
+    created_at:new Date().toISOString(),
+  };
+
+  const btn=document.getElementById('save-entry-btn');
+  if(btn){btn.disabled=true;btn.textContent='保存中...';}
+  try {
+    const {error}=await _sb.from('deliveries').insert(rec);
+    if(error) throw error;
+    deliveries.unshift(rec);
+    if(up&&parseFloat(up)>0) await upsertPrice(fid,code,up);
+    toast('✅ 追加しました');
+    ['ef_item_code','ef_color','ef_attr','ef_qty','ef_memo'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+    (EXTRA[fac.process]||[]).forEach(e=>{const el=document.getElementById('ef_'+e.key);if(el)el.value='';});
+    const aEl=document.getElementById('ef_amount');if(aEl)aEl.value='';
+    const upEl=document.getElementById('ef_unit_price');if(upEl){upEl.value='';upEl.classList.remove('price-auto');}
+    const hint=document.getElementById('ef_up_hint');if(hint)hint.textContent='';
+    document.getElementById('ef_item_code')?.focus();
+    renderEntry();
+  } catch(e){
+    console.error(e);
+    toast('❌ 保存エラー: '+e.message,4000);
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='＋ 追加';}
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   DELIVERY TABLE HTML (shared)
+════════════════════════════════════════════════════ */
+function delivTableHTML(rows, showFilter){
+  if(!rows.length) return `<div class="empty"><div class="empty-icon">📋</div>記録がありません</div>`;
+  const tot=rows.reduce((s,r)=>s+(parseInt(r.amount)||0),0);
+  let h=`<table><thead><tr>
+    <th>工程</th><th>工場</th><th>納品日</th><th>品番</th><th>カラー/属性</th>
+    <th style="text-align:right;">数量</th>
+    <th style="text-align:right;">単価（円）</th>
+    <th style="text-align:right;">金額（円）</th>
+    <th>備考</th><th></th>
+  </tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const p=PM[r.process]||{};
+    const ca=[r.color,r.attr,r.color_no].filter(Boolean).join(' / ');
+    h+=`<tr>
+      <td><span class="badge ${p.badge||''}">${p.icon||''} ${p.label||r.process}</span></td>
+      <td style="font-size:11px;">${r.fac_name||'—'}</td>
+      <td>${r.date||'—'}</td>
+      <td class="mono">${r.item_code||'—'}</td>
+      <td style="font-size:11px;color:var(--tx2);">${ca||'—'}</td>
+      <td class="r">${fq(r.qty)} <span style="font-size:10px;color:var(--tx3);">${r.unit||''}</span></td>
+      <td class="r" style="font-size:11px;color:var(--tx2);">¥${fmt(r.unit_price)}</td>
+      <td class="r" style="font-weight:600;">¥${fmt(r.amount)}</td>
+      <td style="color:var(--tx3);font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.memo||''}</td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button class="btn btn-s btn-sm" onclick="openEditDelivModal('${r.id}')">編集</button>
+        <button class="ibtn" onclick="delDeliv('${r.id}')" title="削除">✕</button>
+      </td></tr>`;
+  });
+  h+=`<tr class="sub"><td colspan="7" style="text-align:right;font-size:11px;color:var(--tx2);">合計（${rows.length}件）</td>
+    <td class="r" style="color:var(--ac);">¥${fmt(tot)}</td><td colspan="2"></td></tr>`;
+  return h+'</tbody></table>';
+}
+
+/* ════════════════════════════════════════════════════
+   HISTORY PAGE
+════════════════════════════════════════════════════ */
+function renderHistory(){
+  const ps=document.getElementById('ht_proc');
+  if(ps.options.length<=1){
+    Object.keys(PM).forEach(p=>ps.innerHTML+=`<option value="${p}">${PM[p].label}</option>`);
+  }
+  const fs=document.getElementById('ht_fac');
+  fs.innerHTML='<option value="">全工場</option>'+factories.map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
+
+  const rows=filteredDelivs();
+  document.getElementById('hist-cnt').textContent=rows.length+'件';
+  document.getElementById('hist-table').innerHTML=delivTableHTML(rows,true);
+}
+function filteredDelivs(){
+  const q=(document.getElementById('ht_q')?.value||'').toLowerCase();
+  const fr=document.getElementById('ht_from')?.value||'';
+  const to=document.getElementById('ht_to')?.value||'';
+  const pr=document.getElementById('ht_proc')?.value||'';
+  const fi=document.getElementById('ht_fac')?.value||'';
+  return deliveries.filter(r=>{
+    if(pr&&r.process!==pr)return false;
+    if(fi&&r.fac_id!==fi)return false;
+    if(fr&&r.date<fr)return false;
+    if(to&&r.date>to)return false;
+    if(q&&!JSON.stringify(r).toLowerCase().includes(q))return false;
+    return true;
+  });
+}
+function clearHF(){
+  ['ht_q','ht_from','ht_to'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['ht_proc','ht_fac'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  renderHistory();
+}
+
+/* ════════════════════════════════════════════════════
+   SUMMARY PAGE
+════════════════════════════════════════════════════ */
+const MLBL=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+function renderSummary(){
+  document.getElementById('sum-yr').textContent=sumYear+'年';
+  const yrecs=deliveries.filter(d=>d.date&&d.date.startsWith(String(sumYear)));
+  const months=MLBL.map((_,i)=>String(sumYear)+'-'+String(i+1).padStart(2,'0'));
+
+  const ytot=yrecs.reduce((s,d)=>s+(parseInt(d.amount)||0),0);
+  const byProc={};Object.keys(PM).forEach(p=>byProc[p]=0);
+  yrecs.forEach(d=>{if(byProc[d.process]!==undefined)byProc[d.process]+=(parseInt(d.amount)||0);});
+  let statsH=`<div class="sc"><div class="si" style="background:#f0f0ed;">📊</div>
+    <div><div class="sl">${sumYear}年 合計</div><div class="sv" style="color:var(--ac);">¥${fmt(ytot)}</div></div></div>`;
+  Object.keys(PM).forEach(p=>{if(byProc[p]>0){const pm=PM[p];
+    statsH+=`<div class="sc"><div class="si" style="background:${pm.bg};">${pm.icon}</div>
+      <div><div class="sl">${pm.label}</div><div class="sv" style="color:${pm.col};">¥${fmt(byProc[p])}</div></div></div>`;}});
+  document.getElementById('sum-stats').innerHTML=statsH;
+
+  const procGroups=Object.keys(PM).filter(p=>byProc[p]>0).map(p=>({key:p,label:`${PM[p].icon} ${PM[p].label}`}));
+  const procMtx={};
+  procGroups.forEach(g=>{procMtx[g.key]={};months.forEach(m=>procMtx[g.key][m]=0);});
+  yrecs.forEach(d=>{const m=ym(d.date);if(procMtx[d.process]&&m)procMtx[d.process][m]+=(parseInt(d.amount)||0);});
+  document.getElementById('sum-proc-tbl').innerHTML=crossTableHTML(procGroups,procMtx,months,'工程');
+
+  const usedFids=[...new Set(yrecs.map(d=>d.fac_id))];
+  const facGroups=factories.filter(f=>usedFids.includes(f.id)).map(f=>({key:f.id,label:f.name,process:f.process}));
+  yrecs.forEach(d=>{if(!facGroups.find(g=>g.key===d.fac_id))facGroups.push({key:d.fac_id,label:d.fac_name||d.fac_id,process:d.process});});
+  const facMtx={};
+  facGroups.forEach(g=>{facMtx[g.key]={};months.forEach(m=>facMtx[g.key][m]=0);});
+  yrecs.forEach(d=>{const m=ym(d.date);if(facMtx[d.fac_id]&&m)facMtx[d.fac_id][m]+=(parseInt(d.amount)||0);});
+  document.getElementById('sum-fac-tbl').innerHTML=crossTableHTML(facGroups,facMtx,months,'工場');
+
+  renderSumDetail(yrecs,facGroups);
+}
+
+function crossTableHTML(groups,mtx,months,rowLabel){
+  if(!groups.length) return `<div class="empty"><div class="empty-icon">📊</div>データがありません</div>`;
+  const colTot={};months.forEach(m=>colTot[m]=0);
+  let h=`<table class="sum-tbl"><thead><tr>
+    <th style="text-align:left;min-width:140px;">${rowLabel}</th>
+    ${MLBL.map(l=>`<th>${l}</th>`).join('')}
+    <th>年間合計</th>
+  </tr></thead><tbody>`;
+  groups.forEach(g=>{
+    const rowTot=months.reduce((s,m)=>s+(mtx[g.key][m]||0),0);
+    months.forEach(m=>colTot[m]+=(mtx[g.key][m]||0));
+    const pm=PM[g.process]||{};
+    h+=`<tr>
+      <td class="lbl">${g.process?`<span class="badge ${pm.badge||''}" style="margin-right:4px;">${pm.icon||''}</span>`:''}${g.label}</td>
+      ${months.map(m=>{const v=mtx[g.key][m]||0;return v>0?`<td class="has">¥${fmt(v)}</td>`:`<td class="nil">—</td>`;}).join('')}
+      <td style="font-weight:700;color:var(--ac);">¥${fmt(rowTot)}</td>
+    </tr>`;
+  });
+  const grand=months.reduce((s,m)=>s+(colTot[m]||0),0);
+  h+=`<tr class="tot"><td class="lbl">合計</td>
+    ${months.map(m=>`<td>¥${fmt(colTot[m]||0)}</td>`).join('')}
+    <td>¥${fmt(grand)}</td></tr>`;
+  return h+'</tbody></table>';
+}
+
+function renderSumDetail(yrecs,facGroups){
+  let h='';
+  facGroups.forEach(g=>{
+    const gr=yrecs.filter(d=>d.fac_id===g.key);if(!gr.length)return;
+    const pm=PM[g.process]||{};
+    const tot=gr.reduce((s,r)=>s+(parseInt(r.amount)||0),0);
+    h+=`<div style="border-bottom:1px solid var(--bdr);padding:12px 16px;">
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+        <span class="badge ${pm.badge||''}">${pm.icon||''} ${pm.label||''}</span>
+        <span>${g.label}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--tx3);">${gr.length}件 / ¥${fmt(tot)}</span>
+      </div>
+      <table style="font-size:11px;width:100%;">
+        <thead><tr style="background:var(--sur2);">
+          <th style="padding:5px 8px;border-bottom:1px solid var(--bdr);">納品日</th>
+          <th style="padding:5px 8px;border-bottom:1px solid var(--bdr);">品番</th>
+          <th style="padding:5px 8px;border-bottom:1px solid var(--bdr);">カラー/属性</th>
+          <th style="padding:5px 8px;border-bottom:1px solid var(--bdr);text-align:right;">数量</th>
+          <th style="padding:5px 8px;border-bottom:1px solid var(--bdr);text-align:right;">単価</th>
+          <th style="padding:5px 8px;border-bottom:1px solid var(--bdr);text-align:right;">金額</th>
+          <th style="padding:5px 8px;border-bottom:1px solid var(--bdr);">備考</th>
+        </tr></thead><tbody>`;
+    [...gr].sort((a,b)=>a.date>b.date?1:-1).forEach(r=>{
+      const ca=[r.color,r.attr,r.color_no].filter(Boolean).join('/');
+      h+=`<tr style="border-bottom:1px solid var(--bg);">
+        <td style="padding:5px 8px;">${r.date||'—'}</td>
+        <td style="padding:5px 8px;font-family:'Courier New',monospace;">${r.item_code||'—'}</td>
+        <td style="padding:5px 8px;color:var(--tx2);">${ca||'—'}</td>
+        <td style="padding:5px 8px;text-align:right;">${fq(r.qty)} ${r.unit||''}</td>
+        <td style="padding:5px 8px;text-align:right;">¥${fmt(r.unit_price)}</td>
+        <td style="padding:5px 8px;text-align:right;font-weight:600;">¥${fmt(r.amount)}</td>
+        <td style="padding:5px 8px;color:var(--tx3);">${r.memo||''}</td>
+      </tr>`;
+    });
+    h+='</tbody></table></div>';
+  });
+  document.getElementById('sum-detail').innerHTML=h||`<div class="empty"><div class="empty-icon">📊</div>${sumYear}年のデータがありません</div>`;
+}
+
+/* ════════════════════════════════════════════════════
+   MASTER PAGE
+════════════════════════════════════════════════════ */
+function renderMaster(){
+  renderFacTable();
+  renderItemTable();
+  renderPriceTable();
+  const ps=document.getElementById('pm_fac');
+  ps.innerHTML='<option value="">全工場</option>'+factories.map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
+}
+
+function renderFacTable(){
+  const el=document.getElementById('fac-table');
+  if(!factories.length){el.innerHTML=`<div class="empty"><div class="empty-icon">🏭</div>工場が登録されていません</div>`;return;}
+  let h=`<table><thead><tr><th>工場名</th><th>工程</th><th>数量単位</th><th></th></tr></thead><tbody>`;
+  factories.forEach(f=>{
+    const pm=PM[f.process]||{};
+    h+=`<tr>
+      <td style="font-weight:500;">${f.name}</td>
+      <td><span class="badge ${pm.badge||''}">${pm.icon||''} ${pm.label||f.process}</span></td>
+      <td>${f.unit||'—'}</td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button class="btn btn-s btn-sm" onclick="openFacModal('${f.id}')">編集</button>
+        <button class="ibtn" onclick="delFac('${f.id}')">✕</button>
+      </td></tr>`;
+  });
+  el.innerHTML=h+'</tbody></table>';
+}
+
+function renderItemTable(){
+  const q=(document.getElementById('im_q')?.value||'').toLowerCase();
+  const rows=items.filter(i=>!q||(i.item_code+' '+(i.item_name||'')).toLowerCase().includes(q));
+  const el=document.getElementById('item-table');
+  if(!rows.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📦</div>品番が登録されていません</div>`;return;}
+  let h=`<table><thead><tr><th>品番</th><th>商品名</th><th>備考</th><th></th></tr></thead><tbody>`;
+  rows.forEach(i=>{
+    h+=`<tr>
+      <td class="mono">${i.item_code}</td>
+      <td>${i.item_name||'—'}</td>
+      <td style="color:var(--tx3);font-size:11px;">${i.memo||''}</td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button class="btn btn-s btn-sm" onclick="openItemModal('${i.id}')">編集</button>
+        <button class="ibtn" onclick="delItem('${i.id}')">✕</button>
+      </td></tr>`;
+  });
+  el.innerHTML=h+'</tbody></table>';
+}
+
+function renderPriceTable(){
+  const fid=document.getElementById('pm_fac')?.value||'';
+  const q=(document.getElementById('pm_q')?.value||'').toLowerCase();
+  const rows=prices.filter(p=>{
+    if(fid&&p.fac_id!==fid)return false;
+    if(q&&!p.item_code.toLowerCase().includes(q))return false;
+    return true;
+  });
+  const el=document.getElementById('price-table');
+  if(!rows.length){el.innerHTML=`<div class="empty"><div class="empty-icon">💴</div>単価が登録されていません</div>`;return;}
+  let h=`<table><thead><tr><th>工場</th><th>工程</th><th>品番</th><th style="text-align:right;">単価（円）</th><th>単位</th><th></th></tr></thead><tbody>`;
+  rows.forEach(pr=>{
+    const fac=factories.find(f=>f.id===pr.fac_id)||{name:pr.fac_id,process:'',unit:'—'};
+    const pm=PM[fac.process]||{};
+    h+=`<tr>
+      <td style="font-size:12px;">${fac.name}</td>
+      <td>${fac.process?`<span class="badge ${pm.badge||''}">${pm.icon||''} ${pm.label||''}</span>`:'—'}</td>
+      <td class="mono">${pr.item_code}</td>
+      <td class="r" style="font-weight:700;">¥${fmt(pr.unit_price)}<span style="font-size:10px;color:var(--tx3);font-weight:400;">/${fac.unit}</span></td>
+      <td style="font-size:11px;color:var(--tx2);">${fac.unit||'—'}</td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button class="btn btn-s btn-sm" onclick="openPriceModal('${pr.id}')">編集</button>
+        <button class="ibtn" onclick="delPrice('${pr.id}')">✕</button>
+      </td></tr>`;
+  });
+  el.innerHTML=h+'</tbody></table>';
+}
+
+/* ════════════════════════════════════════════════════
+   MODALS
+════════════════════════════════════════════════════ */
+function openModal(title){
+  document.getElementById('mttl').textContent=title;
+  document.getElementById('ov').classList.remove('hidden');
+}
+function closeModal(){document.getElementById('ov').classList.add('hidden');_modalSaveFn=null;}
+function ovClick(e){if(e.target===document.getElementById('ov'))closeModal();}
+async function execModalSave(){
+  if(!_modalSaveFn) return;
+  const btn=document.getElementById('m-save');
+  if(btn){btn.disabled=true;btn.textContent='保存中...';}
+  try {
+    const result=await _modalSaveFn();
+    if(result) closeModal();
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='保存';}
+  }
+}
+
+// ── Factory modal ──
+function openFacModal(id){
+  const f=id?factories.find(x=>x.id===id):null;
+  openModal(f?'工場 編集':'工場 追加');
+  const pOpts=Object.keys(PM).map(p=>`<option value="${p}" ${f&&f.process===p?'selected':''}>${PM[p].icon} ${PM[p].label}</option>`).join('');
+  document.getElementById('mbdy').innerHTML=`
+    <div class="fg"><label>工場名 <span class="req">*</span></label>
+      <input type="text" id="fm_name" value="${f?f.name:''}" placeholder="例：坂本繊維（編み）"></div>
+    <div class="fg"><label>工程 <span class="req">*</span></label><select id="fm_proc">${pOpts}</select></div>
+    <div class="fg"><label>数量単位 <span class="req">*</span></label>
+      <input type="text" id="fm_unit" value="${f?f.unit:''}" placeholder="kg / 枚 / 足"></div>`;
+  _modalSaveFn=async()=>{
+    const name=(document.getElementById('fm_name')?.value||'').trim();
+    const proc=document.getElementById('fm_proc')?.value;
+    const unit=(document.getElementById('fm_unit')?.value||'').trim();
+    if(!name){toast('❌ 工場名を入力してください');return false;}
+    if(!unit){toast('❌ 単位を入力してください');return false;}
+    if(!_sb){toast('❌ Supabase未設定');return false;}
+    try {
+      if(f){
+        const i=factories.findIndex(x=>x.id===id);
+        factories[i]={...factories[i],name,process:proc,unit};
+        const {error}=await _sb.from('factories').update({name,process:proc,unit}).eq('id',id);
+        if(error) throw error;
+      } else {
+        const newFac={id:uid(),name,process:proc,unit};
+        factories.push(newFac);
+        const {error}=await _sb.from('factories').insert(newFac);
+        if(error) throw error;
+      }
+      renderMaster();renderEntry();toast('✅ 保存しました');return true;
+    } catch(e){toast('❌ エラー: '+e.message,4000);return false;}
+  };
+}
+async function delFac(id){
+  if(!confirm('この工場を削除しますか？'))return;
+  if(!_sb){toast('❌ Supabase未設定');return;}
+  try {
+    const {error}=await _sb.from('factories').delete().eq('id',id);
+    if(error) throw error;
+    factories=factories.filter(f=>f.id!==id);
+    renderMaster();renderEntry();toast('🗑 削除しました');
+  } catch(e){toast('❌ エラー: '+e.message,4000);}
+}
+
+// ── Item modal ──
+function openItemModal(id){
+  const item=id?items.find(x=>x.id===id):null;
+  openModal(item?'品番 編集':'品番 追加');
+  document.getElementById('mbdy').innerHTML=`
+    <div class="fg"><label>品番 <span class="req">*</span></label>
+      <input type="text" id="im_code" value="${item?item.item_code:''}" placeholder="例：baby-leg-k-1"></div>
+    <div class="fg"><label>商品名</label>
+      <input type="text" id="im_name" value="${item?item.item_name||'':''}" placeholder="例：ベビーレッグウォーマー"></div>
+    <div class="fg"><label>備考</label>
+      <input type="text" id="im_memo_f" value="${item?item.memo||'':''}" placeholder="素材・工程メモなど"></div>`;
+  _modalSaveFn=async()=>{
+    const code=(document.getElementById('im_code')?.value||'').trim();
+    const name=(document.getElementById('im_name')?.value||'').trim();
+    const memo=(document.getElementById('im_memo_f')?.value||'').trim();
+    if(!code){toast('❌ 品番を入力してください');return false;}
+    if(!_sb){toast('❌ Supabase未設定');return false;}
+    try {
+      if(item){
+        const i=items.findIndex(x=>x.id===id);
+        items[i]={...items[i],item_code:code,item_name:name,memo};
+        const {error}=await _sb.from('items').update({item_code:code,item_name:name,memo}).eq('id',id);
+        if(error) throw error;
+      } else {
+        if(items.find(i=>i.item_code===code)){toast('❌ この品番はすでに登録されています');return false;}
+        const newItem={id:uid(),item_code:code,item_name:name,memo};
+        items.push(newItem);
+        const {error}=await _sb.from('items').insert(newItem);
+        if(error) throw error;
+      }
+      renderItemTable();toast('✅ 保存しました');return true;
+    } catch(e){toast('❌ エラー: '+e.message,4000);return false;}
+  };
+}
+async function delItem(id){
+  if(!confirm('この品番を削除しますか？'))return;
+  if(!_sb){toast('❌ Supabase未設定');return;}
+  try {
+    const {error}=await _sb.from('items').delete().eq('id',id);
+    if(error) throw error;
+    items=items.filter(i=>i.id!==id);
+    renderItemTable();toast('🗑 削除しました');
+  } catch(e){toast('❌ エラー: '+e.message,4000);}
+}
+
+// ── Price modal ──
+function openPriceModal(id){
+  const pr=id?prices.find(x=>x.id===id):null;
+  openModal(pr?'単価 編集':'単価 登録');
+  const fOpts=factories.map(f=>`<option value="${f.id}" ${pr&&pr.fac_id===f.id?'selected':''}>${f.name}</option>`).join('');
+  const dl=`<datalist id="dl_pm">${items.map(i=>`<option value="${i.item_code}">${i.item_name||''}</option>`).join('')}</datalist>`;
+  document.getElementById('mbdy').innerHTML=`${dl}
+    <div class="fg"><label>工場 <span class="req">*</span></label>
+      <select id="pm_fac_m" onchange="onPriceFacChange()">${fOpts}</select></div>
+    <div id="pm_unit_area"></div>
+    <div class="fg"><label>品番 <span class="req">*</span></label>
+      <input type="text" id="pm_code" list="dl_pm" value="${pr?pr.item_code:''}" placeholder="例：baby-leg-k-1"></div>
+    <div class="fg"><label>単価（円）<span class="req">*</span></label>
+      <input type="number" id="pm_price" value="${pr?pr.unit_price:''}" placeholder="0" min="0"></div>`;
+  onPriceFacChange();
+  _modalSaveFn=async()=>{
+    const fid=document.getElementById('pm_fac_m')?.value;
+    const code=(document.getElementById('pm_code')?.value||'').trim();
+    const price=document.getElementById('pm_price')?.value;
+    if(!fid){toast('❌ 工場を選択してください');return false;}
+    if(!code){toast('❌ 品番を入力してください');return false;}
+    if(!price||parseFloat(price)<=0){toast('❌ 単価を入力してください');return false;}
+    if(!_sb){toast('❌ Supabase未設定');return false;}
+    try {
+      if(pr){
+        const i=prices.findIndex(x=>x.id===id);
+        prices[i]={...prices[i],fac_id:fid,item_code:code,unit_price:parseFloat(price)};
+        const {error}=await _sb.from('prices').update({fac_id:fid,item_code:code,unit_price:parseFloat(price)}).eq('id',id);
+        if(error) throw error;
+      } else {
+        const exist=prices.find(x=>x.fac_id===fid&&x.item_code===code);
+        if(exist){
+          exist.unit_price=parseFloat(price);
+          const {error}=await _sb.from('prices').update({unit_price:parseFloat(price)}).eq('id',exist.id);
+          if(error) throw error;
+        } else {
+          const rec={id:uid(),fac_id:fid,item_code:code,unit_price:parseFloat(price)};
+          prices.push(rec);
+          const {error}=await _sb.from('prices').insert(rec);
+          if(error) throw error;
+        }
+      }
+      renderPriceTable();toast('✅ 保存しました');return true;
+    } catch(e){toast('❌ エラー: '+e.message,4000);return false;}
+  };
+}
+function onPriceFacChange(){
+  const fid=document.getElementById('pm_fac_m')?.value;
+  const fac=factories.find(f=>f.id===fid);
+  const area=document.getElementById('pm_unit_area');
+  if(area&&fac){const pm=PM[fac.process]||{};
+    area.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin:-4px 0 4px;">
+      <span class="proc-pill" style="font-size:11px;padding:3px 10px;color:${pm.col};border-color:${pm.col};background:${pm.bg};">${pm.icon} ${pm.label}</span>
+      <span style="font-size:11px;color:var(--tx2);">単位：<strong>${fac.unit}</strong></span>
+    </div>`;}
+}
+async function delPrice(id){
+  if(!confirm('この単価を削除しますか？'))return;
+  if(!_sb){toast('❌ Supabase未設定');return;}
+  try {
+    const {error}=await _sb.from('prices').delete().eq('id',id);
+    if(error) throw error;
+    prices=prices.filter(p=>p.id!==id);
+    renderPriceTable();toast('🗑 削除しました');
+  } catch(e){toast('❌ エラー: '+e.message,4000);}
+}
+
+// ── Edit delivery modal ──
+function openEditDelivModal(id){
+  const r=deliveries.find(x=>x.id===id);if(!r)return;
+  const fac=factories.find(f=>f.id===r.fac_id)||{name:r.fac_name,process:r.process,unit:r.unit||''};
+  openModal('納品書 編集');
+  const extra=EXTRA[r.process]||[];
+  const extraHTML=extra.map(e=>`
+    <div class="fg"><label>${e.label}</label>
+      <input type="text" id="em_${e.key}" value="${r[e.key]||''}" placeholder="${e.ph||''}"></div>`).join('');
+  document.getElementById('mbdy').innerHTML=`
+    <div class="fg"><label>工場</label>
+      <input value="${fac.name}" disabled></div>
+    <div class="fg"><label>納品日 <span class="req">*</span></label>
+      <input type="date" id="em_date" value="${r.date||today()}"></div>
+    <div class="fg"><label>品番 <span class="req">*</span></label>
+      <input type="text" id="em_code" value="${r.item_code||''}"></div>
+    <div class="fg"><label>カラー / 色番</label>
+      <input type="text" id="em_color" value="${r.color||''}"></div>
+    <div class="fg"><label>サイズ / 属性</label>
+      <input type="text" id="em_attr" value="${r.attr||''}"></div>
+    ${extraHTML}
+    <div class="fg"><label>数量（${fac.unit}）</label>
+      <input type="number" id="em_qty" value="${r.qty||''}" min="0" step="any" oninput="calcEM()"></div>
+    <div class="fg"><label>単価（円/${fac.unit}）</label>
+      <input type="number" id="em_up" value="${r.unit_price||''}" min="0" oninput="calcEM()"></div>
+    <div class="fg"><label>金額（円）</label>
+      <input type="number" id="em_amt" class="calc-out" value="${r.amount||''}" readonly></div>
+    <div class="fg"><label>備考</label>
+      <input type="text" id="em_memo" value="${r.memo||''}"></div>`;
+  _modalSaveFn=async()=>{
+    const date=(document.getElementById('em_date')?.value||'').trim();
+    const code=(document.getElementById('em_code')?.value||'').trim();
+    if(!date){toast('❌ 納品日を入力してください');return false;}
+    if(!code){toast('❌ 品番を入力してください');return false;}
+    if(!_sb){toast('❌ Supabase未設定');return false;}
+    const qty=document.getElementById('em_qty')?.value||'';
+    const up=document.getElementById('em_up')?.value||'';
+    const amt=calcAmt(qty,up);
+    const extraData={};
+    extra.forEach(e=>{const el=document.getElementById('em_'+e.key);if(el)extraData[e.key]=el.value.trim();});
+    const updateData={
+      date,item_code:code,
+      color:document.getElementById('em_color')?.value?.trim()||'',
+      attr:document.getElementById('em_attr')?.value?.trim()||'',
+      ...extraData,qty,unit_price:up,amount:amt!==''?amt:'',
+      memo:document.getElementById('em_memo')?.value?.trim()||''
+    };
+    try {
+      const {error}=await _sb.from('deliveries').update(updateData).eq('id',id);
+      if(error) throw error;
+      const idx=deliveries.findIndex(x=>x.id===id);
+      deliveries[idx]={...deliveries[idx],...updateData};
+      if(up&&parseFloat(up)>0) await upsertPrice(r.fac_id,code,up);
+      renderEntry();renderHistory();toast('✅ 更新しました');return true;
+    } catch(e){toast('❌ エラー: '+e.message,4000);return false;}
+  };
+}
+function calcEM(){
+  const a=calcAmt(document.getElementById('em_qty')?.value,document.getElementById('em_up')?.value);
+  const el=document.getElementById('em_amt');if(el)el.value=a!==''?a:'';
+}
+async function delDeliv(id){
+  if(!confirm('この記録を削除しますか？'))return;
+  if(!_sb){toast('❌ Supabase未設定');return;}
+  try {
+    const {error}=await _sb.from('deliveries').delete().eq('id',id);
+    if(error) throw error;
+    deliveries=deliveries.filter(r=>r.id!==id);
+    renderEntry();renderHistory();toast('🗑 削除しました');
+  } catch(e){toast('❌ エラー: '+e.message,4000);}
+}
+
+/* ════════════════════════════════════════════════════
+   CSV
+════════════════════════════════════════════════════ */
+function exportCSV(){
+  if(!deliveries.length){toast('⚠ データがありません');return;}
+  const H=['工程','工場','納品日','品番','商品名/品名','カラー/色番','サイズ/属性','数量','単位','単価（円）','金額（円）','備考'];
+  const rows=[H];
+  deliveries.forEach(r=>{
+    const pm=PM[r.process];
+    rows.push([pm?.label||r.process,r.fac_name||'',r.date||'',r.item_code||'',
+      r.item_name||'',r.color||'',r.attr||'',r.qty||'',r.unit||'',r.unit_price||'',r.amount||'',r.memo||'']);
+  });
+  const csv='\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  Object.assign(document.createElement('a'),{
+    href:URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})),
+    download:`納品書_${today()}.csv`
+  }).click();
+  toast('⬇ CSV出力完了');
+}
+
+/* ════════════════════════════════════════════════════
+   TOAST
+════════════════════════════════════════════════════ */
+function toast(msg,ms=2200){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.remove('hidden');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.add('hidden'),ms);
+}
+
+/* ════════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════════ */
+async function init(){
+  if(!_sb) return;
+  await loadAll();
+  document.getElementById('loading-ov').style.display='none';
+  renderEntry();
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&e.target.closest('.card-body')&&e.target.tagName!=='BUTTON'&&e.target.tagName!=='SELECT'){
+      e.preventDefault();saveEntry();
+    }
+  });
+}
+init();
+</script>
+</body>
+</html>
