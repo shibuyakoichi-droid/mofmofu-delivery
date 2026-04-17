@@ -226,33 +226,42 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
 
   <!-- ═══ PAGE: SUMMARY ═══ -->
   <div class="page" id="page-summary">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <div class="ynav">
-          <button onclick="sumYear--;renderSummary()">‹</button>
-          <span class="yl" id="sum-yr"></span>
-          <button onclick="sumYear++;renderSummary()">›</button>
+    <!-- フィルターバー -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-body" style="padding:12px 16px;">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="ynav">
+            <button onclick="sumYear--;document.getElementById('sum-month').value='';renderSummary()">‹</button>
+            <span class="yl" id="sum-yr"></span>
+            <button onclick="sumYear++;document.getElementById('sum-month').value='';renderSummary()">›</button>
+          </div>
+          <select id="sum-month" onchange="renderSummary()" style="border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 10px;font-family:inherit;font-size:13px;background:var(--sur);color:var(--tx);">
+            <option value="">全月</option>
+            <option value="01">1月</option><option value="02">2月</option>
+            <option value="03">3月</option><option value="04">4月</option>
+            <option value="05">5月</option><option value="06">6月</option>
+            <option value="07">7月</option><option value="08">8月</option>
+            <option value="09">9月</option><option value="10">10月</option>
+            <option value="11">11月</option><option value="12">12月</option>
+          </select>
+          <span style="font-size:12px;color:var(--tx3);">または日付範囲</span>
+          <input type="date" id="sum-from" onchange="renderSummary()" style="border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 8px;font-family:inherit;font-size:12px;background:var(--sur);color:var(--tx);">
+          <span style="font-size:11px;color:var(--tx3);">〜</span>
+          <input type="date" id="sum-to" onchange="renderSummary()" style="border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 8px;font-family:inherit;font-size:12px;background:var(--sur);color:var(--tx);">
+          <button class="btn btn-s btn-sm" onclick="document.getElementById('sum-from').value='';document.getElementById('sum-to').value='';document.getElementById('sum-month').value='';renderSummary()">クリア</button>
         </div>
-        <select id="sum-month" onchange="renderSummary()" style="border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 10px;font-family:inherit;font-size:13px;font-weight:600;background:var(--sur);color:var(--tx);">
-          <option value="">全月</option>
-          <option value="01">1月</option><option value="02">2月</option>
-          <option value="03">3月</option><option value="04">4月</option>
-          <option value="05">5月</option><option value="06">6月</option>
-          <option value="07">7月</option><option value="08">8月</option>
-          <option value="09">9月</option><option value="10">10月</option>
-          <option value="11">11月</option><option value="12">12月</option>
-        </select>
       </div>
     </div>
+
     <div class="stats" id="sum-stats"></div>
 
     <!-- Cross tables: 工程別 + 工場別 -->
     <div class="card">
-      <div class="card-hdr"><span class="card-ttl">工程別 × 月別 金額サマリー</span></div>
+      <div class="card-hdr"><span class="card-ttl" id="sum-proc-ttl">工程別 × 月別 金額サマリー</span></div>
       <div style="overflow-x:auto;padding:16px;" id="sum-proc-tbl"></div>
     </div>
     <div class="card">
-      <div class="card-hdr"><span class="card-ttl">工場別 × 月別 金額サマリー</span></div>
+      <div class="card-hdr"><span class="card-ttl" id="sum-fac-ttl">工場別 × 月別 金額サマリー</span></div>
       <div style="overflow-x:auto;padding:16px;" id="sum-fac-tbl"></div>
     </div>
 
@@ -728,19 +737,45 @@ function clearHF(){
 const MLBL=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 function renderSummary(){
-  const sumMonth=document.getElementById('sum-month')?.value||'';
-  document.getElementById('sum-yr').textContent=sumYear+'年'+(sumMonth?MLBL[parseInt(sumMonth)-1]:'');
-  const prefix=sumMonth?`${sumYear}-${sumMonth}`:String(sumYear);
-  const yrecs=deliveries.filter(d=>d.date&&d.date.startsWith(prefix));
-  const months=sumMonth
-    ?[`${sumYear}-${sumMonth}`]
-    :MLBL.map((_,i)=>String(sumYear)+'-'+String(i+1).padStart(2,'0'));
+  const sumMonth = document.getElementById('sum-month')?.value||'';
+  const fromDate = document.getElementById('sum-from')?.value||'';
+  const toDate   = document.getElementById('sum-to')?.value||'';
+  const useDateRange = fromDate || toDate;
+
+  document.getElementById('sum-yr').textContent = sumYear+'年';
+
+  let yrecs, months, rangeLabel;
+  if(useDateRange){
+    yrecs = deliveries.filter(d=>{
+      if(!d.date) return false;
+      if(fromDate && d.date < fromDate) return false;
+      if(toDate   && d.date > toDate)   return false;
+      return true;
+    });
+    rangeLabel = (fromDate||'〜') + ' 〜 ' + (toDate||'〜');
+    // 月軸は範囲内の月を列挙
+    const monthSet = new Set(yrecs.map(d=>d.date.slice(0,7)));
+    months = [...monthSet].sort();
+    if(!months.length) months = [fromDate?fromDate.slice(0,7):today().slice(0,7)];
+    document.getElementById('sum-proc-ttl').textContent = `工程別 金額サマリー（${rangeLabel}）`;
+    document.getElementById('sum-fac-ttl').textContent  = `工場別 金額サマリー（${rangeLabel}）`;
+  } else {
+    const prefix = sumMonth ? `${sumYear}-${sumMonth}` : String(sumYear);
+    yrecs = deliveries.filter(d=>d.date&&d.date.startsWith(prefix));
+    months = sumMonth
+      ? [`${sumYear}-${sumMonth}`]
+      : MLBL.map((_,i)=>String(sumYear)+'-'+String(i+1).padStart(2,'0'));
+    const label = sumMonth ? sumYear+'年'+MLBL[parseInt(sumMonth)-1] : sumYear+'年';
+    document.getElementById('sum-proc-ttl').textContent = `工程別 × 月別 金額サマリー`;
+    document.getElementById('sum-fac-ttl').textContent  = `工場別 × 月別 金額サマリー`;
+    rangeLabel = label;
+  }
 
   const ytot=yrecs.reduce((s,d)=>s+(parseInt(d.amount)||0),0);
   const byProc={};Object.keys(PM).forEach(p=>byProc[p]=0);
   yrecs.forEach(d=>{if(byProc[d.process]!==undefined)byProc[d.process]+=(parseInt(d.amount)||0);});
   let statsH=`<div class="sc"><div class="si" style="background:#f0f0ed;">📊</div>
-    <div><div class="sl">${sumYear}年 合計</div><div class="sv" style="color:var(--ac);">¥${fmt(ytot)}</div></div></div>`;
+    <div><div class="sl">${rangeLabel} 累計</div><div class="sv" style="color:var(--ac);">¥${fmt(ytot)}</div></div></div>`;
   Object.keys(PM).forEach(p=>{if(byProc[p]>0){const pm=PM[p];
     statsH+=`<div class="sc"><div class="si" style="background:${pm.bg};">${pm.icon}</div>
       <div><div class="sl">${pm.label}</div><div class="sv" style="color:${pm.col};">¥${fmt(byProc[p])}</div></div></div>`;}});
@@ -766,11 +801,14 @@ function renderSummary(){
 function crossTableHTML(groups,mtx,months,rowLabel){
   if(!groups.length) return `<div class="empty"><div class="empty-icon">📊</div>データがありません</div>`;
   const colTot={};months.forEach(m=>colTot[m]=0);
-  const colLabels=months.length===1?[months[0].slice(0,7)]:MLBL;
+  const colLabels=months.map(m=>{
+    const mi=parseInt(m.slice(5))-1;
+    return MLBL[mi]||m;
+  });
   let h=`<table class="sum-tbl"><thead><tr>
     <th style="text-align:left;min-width:140px;">${rowLabel}</th>
     ${colLabels.map(l=>`<th>${l}</th>`).join('')}
-    <th>${months.length===1?'合計':'年間合計'}</th>
+    <th>合計</th>
   </tr></thead><tbody>`;
   groups.forEach(g=>{
     const rowTot=months.reduce((s,m)=>s+(mtx[g.key][m]||0),0);
