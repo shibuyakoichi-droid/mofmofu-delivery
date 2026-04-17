@@ -421,6 +421,7 @@ async function loadAll(){
   } catch(e){
     console.error(e);
     toast('❌ DB接続エラー: '+e.message, 5000);
+    if(!factories.length) factories = JSON.parse(JSON.stringify(DEF_FAC));
   }
 }
 
@@ -481,6 +482,7 @@ function renderEntry(){
     factories.map(f=>`<option value="${f.id}" ${f.id===cur?'selected':''}>${f.name}</option>`).join('');
   if(!document.getElementById('ef_date').value) document.getElementById('ef_date').value=today();
   if(cur) onEFFactory(true);
+  else document.getElementById('ef_dynamic').innerHTML='<div style="padding:24px;text-align:center;color:var(--tx3);font-size:13px;">↑ まず工場名を選択してください</div>';
 
   document.getElementById('entry-recent').innerHTML=delivTableHTML(deliveries.slice(0,8),false);
 }
@@ -490,7 +492,11 @@ function onEFFactory(keep){
   const fac=factories.find(f=>f.id===fid);
   const pill=document.getElementById('ef_proc_pill');
   const dyn=document.getElementById('ef_dynamic');
-  if(!fac){pill.innerHTML='';dyn.innerHTML='';return;}
+  if(!fac){
+    pill.innerHTML='';
+    dyn.innerHTML='<div style="padding:24px;text-align:center;color:var(--tx3);font-size:13px;">↑ まず工場名を選択してください</div>';
+    return;
+  }
 
   const p=PM[fac.process]||{};
   pill.innerHTML=`<div class="proc-pill" style="color:${p.col};border-color:${p.col};background:${p.bg};">${p.icon} ${p.label} / ${fac.unit}単価</div>`;
