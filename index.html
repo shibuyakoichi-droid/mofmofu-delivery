@@ -227,10 +227,21 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
   <!-- ═══ PAGE: SUMMARY ═══ -->
   <div class="page" id="page-summary">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
-      <div class="ynav">
-        <button onclick="sumYear--;renderSummary()">‹</button>
-        <span class="yl" id="sum-yr"></span>
-        <button onclick="sumYear++;renderSummary()">›</button>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div class="ynav">
+          <button onclick="sumYear--;renderSummary()">‹</button>
+          <span class="yl" id="sum-yr"></span>
+          <button onclick="sumYear++;renderSummary()">›</button>
+        </div>
+        <select id="sum-month" onchange="renderSummary()" style="border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 10px;font-family:inherit;font-size:13px;font-weight:600;background:var(--sur);color:var(--tx);">
+          <option value="">全月</option>
+          <option value="01">1月</option><option value="02">2月</option>
+          <option value="03">3月</option><option value="04">4月</option>
+          <option value="05">5月</option><option value="06">6月</option>
+          <option value="07">7月</option><option value="08">8月</option>
+          <option value="09">9月</option><option value="10">10月</option>
+          <option value="11">11月</option><option value="12">12月</option>
+        </select>
       </div>
     </div>
     <div class="stats" id="sum-stats"></div>
@@ -717,9 +728,13 @@ function clearHF(){
 const MLBL=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 function renderSummary(){
-  document.getElementById('sum-yr').textContent=sumYear+'年';
-  const yrecs=deliveries.filter(d=>d.date&&d.date.startsWith(String(sumYear)));
-  const months=MLBL.map((_,i)=>String(sumYear)+'-'+String(i+1).padStart(2,'0'));
+  const sumMonth=document.getElementById('sum-month')?.value||'';
+  document.getElementById('sum-yr').textContent=sumYear+'年'+(sumMonth?MLBL[parseInt(sumMonth)-1]:'');
+  const prefix=sumMonth?`${sumYear}-${sumMonth}`:String(sumYear);
+  const yrecs=deliveries.filter(d=>d.date&&d.date.startsWith(prefix));
+  const months=sumMonth
+    ?[`${sumYear}-${sumMonth}`]
+    :MLBL.map((_,i)=>String(sumYear)+'-'+String(i+1).padStart(2,'0'));
 
   const ytot=yrecs.reduce((s,d)=>s+(parseInt(d.amount)||0),0);
   const byProc={};Object.keys(PM).forEach(p=>byProc[p]=0);
@@ -751,10 +766,11 @@ function renderSummary(){
 function crossTableHTML(groups,mtx,months,rowLabel){
   if(!groups.length) return `<div class="empty"><div class="empty-icon">📊</div>データがありません</div>`;
   const colTot={};months.forEach(m=>colTot[m]=0);
+  const colLabels=months.length===1?[months[0].slice(0,7)]:MLBL;
   let h=`<table class="sum-tbl"><thead><tr>
     <th style="text-align:left;min-width:140px;">${rowLabel}</th>
-    ${MLBL.map(l=>`<th>${l}</th>`).join('')}
-    <th>年間合計</th>
+    ${colLabels.map(l=>`<th>${l}</th>`).join('')}
+    <th>${months.length===1?'合計':'年間合計'}</th>
   </tr></thead><tbody>`;
   groups.forEach(g=>{
     const rowTot=months.reduce((s,m)=>s+(mtx[g.key][m]||0),0);
