@@ -319,8 +319,8 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
    ★ SUPABASE 設定 ← ここを書き換えてください
    Supabase ダッシュボード → Settings → API から確認
 ════════════════════════════════════════════════════ */
-const SUPABASE_URL      = 'https://nojwspsdaoumknekpyfv.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_8GeRGDFJhKccfMgmBWRglQ_Odghn9pk';
+const SUPABASE_URL      = 'https://yukcdqnnevomhdcpsvms.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1a2NkcW5uZXZvbWhkY3Bzdm1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0Mjc2MTUsImV4cCI6MjA5MjAwMzYxNX0.XBSc2kQNwR_bleSwrfYZD8l0fbKTbL1Z3S7ewEtSkDc';
 
 /* ════════════════════════════════════════════════════
    PROCESS META
@@ -361,7 +361,7 @@ const DEF_FAC = [
    SUPABASE CLIENT
 ════════════════════════════════════════════════════ */
 let _sb = null;
-if(SUPABASE_URL !== 'Yhttps://nojwspsdaoumknekpyfv.supabase.co'){
+if(SUPABASE_URL && SUPABASE_URL.startsWith('https://')){
   _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 } else {
   document.getElementById('loading-ov').innerHTML=`
