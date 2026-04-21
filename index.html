@@ -177,8 +177,8 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
         <span class="card-ttl">納品書 新規登録</span>
       </div>
       <div class="card-body">
-        <!-- Row 1: factory + date -->
-        <div class="grid" style="grid-template-columns:220px 180px auto 1fr;align-items:end;margin-bottom:14px;gap:12px;">
+        <!-- Row 1: factory + process + date -->
+        <div class="grid" style="grid-template-columns:220px auto 180px 1fr;align-items:end;margin-bottom:14px;gap:12px;">
           <div class="fg">
             <label>工場名 <span class="req">*</span></label>
             <select id="ef_factory" onchange="onEFFactory()">
@@ -186,10 +186,13 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
             </select>
           </div>
           <div class="fg">
+            <label>工程</label>
+            <div id="ef_proc_pill" style="padding-top:5px;min-height:31px;display:flex;align-items:center;"></div>
+          </div>
+          <div class="fg">
             <label>納品日 <span class="req">*</span></label>
             <input type="date" id="ef_date">
           </div>
-          <div id="ef_proc_pill" style="padding-bottom:1px;"></div>
           <div></div>
         </div>
         <!-- Row 2+: dynamic -->
@@ -543,13 +546,18 @@ function onEFFactory(keep){
       <input type="text" id="ef_${e.key}" placeholder="${e.ph||''}" value="${keep?(document.getElementById('ef_'+e.key)?.value||''):''}">
     </div>`).join('');
 
-  const mainCols=3+extra.length;
+  const mainCols=4+extra.length;
   dyn.innerHTML=`${dl}
-  <div class="grid" style="grid-template-columns:repeat(${Math.min(mainCols,5)},1fr);margin-bottom:10px;">
+  <div class="grid" style="grid-template-columns:1fr 1fr repeat(${Math.min(2+extra.length,4)},1fr);margin-bottom:10px;">
     <div class="fg">
       <label>品番 <span class="req">*</span></label>
       <input type="text" id="ef_item_code" list="${dlId}" placeholder="例：baby-leg-k-1"
         value="${prevCode}" oninput="onEFItemCode()">
+    </div>
+    <div class="fg">
+      <label>商品名</label>
+      <input type="text" id="ef_item_name_disp" class="calc-out" placeholder="品番選択で自動表示" readonly
+        value="${keep?(document.getElementById('ef_item_name_disp')?.value||''):''}">
     </div>
     <div class="fg">
       <label>カラー / 色番</label>
@@ -600,6 +608,9 @@ function onEFItemCode(){
   const upEl=document.getElementById('ef_unit_price');
   const hint=document.getElementById('ef_up_hint');
   const badge=document.getElementById('ef_up_badge');
+  const nameEl=document.getElementById('ef_item_name_disp');
+  const item=items.find(i=>i.item_code===code);
+  if(nameEl) nameEl.value=item?.item_name||'';
   if(upEl && up!==''){
     upEl.value=up;
     upEl.classList.add('price-auto');
@@ -644,7 +655,7 @@ function addToPending(){
     qty,unit:fac.unit,unit_price:up,amount:amt!==''?amt:'',
     memo:document.getElementById('ef_memo')?.value?.trim()||'',
   });
-  ['ef_item_code','ef_color','ef_attr','ef_qty','ef_memo'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['ef_item_code','ef_item_name_disp','ef_color','ef_attr','ef_qty','ef_memo'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   (EXTRA[fac.process]||[]).forEach(e=>{const el=document.getElementById('ef_'+e.key);if(el)el.value='';});
   const aEl=document.getElementById('ef_amount');if(aEl)aEl.value='';
   const upEl=document.getElementById('ef_unit_price');if(upEl){upEl.value='';upEl.classList.remove('price-auto');}
