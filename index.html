@@ -301,7 +301,10 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
         </div>
       </div>
       <div class="fbar">
-        <input type="text" id="im_q" placeholder="品番・商品名…" oninput="renderItemTable()" style="width:180px;">
+        <select id="im_proc_f" onchange="renderItemTable()" style="border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 8px;font-family:inherit;font-size:12px;">
+          <option value="">全工程</option>
+        </select>
+        <input type="text" id="im_q" placeholder="コード・名称…" oninput="renderItemTable()" style="width:180px;">
       </div>
       <div id="item-table"></div>
     </div>
@@ -316,6 +319,9 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
         </div>
       </div>
       <div class="fbar">
+        <select id="pm_proc_f" onchange="filterPriceFac()" style="border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 8px;font-family:inherit;font-size:12px;">
+          <option value="">全工程</option>
+        </select>
         <select id="pm_fac" onchange="renderPriceTable()" style="border:1px solid var(--bdr2);border-radius:var(--r);padding:5px 8px;font-family:inherit;font-size:12px;">
           <option value="">全工場</option>
         </select>
@@ -420,6 +426,21 @@ let sumYear=new Date().getFullYear();
 let _modalSaveFn=null;
 
 const uid=()=>Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,4).toUpperCase();
+const ITEM_META={
+  knit:{code:'生地番',name:'生地名',extra:[]},
+  dye: {code:'生地番',name:'色',   extra:[]},
+  cut: {code:'品番',  name:'商品名',extra:[]},
+  sew: {code:'商品管理番号',name:'商品名',
+    extra:[{key:'color',label:'カラー'},{key:'size',label:'サイズ'},{key:'fabric',label:'生地番号'}]},
+  yarn:{code:'品番',  name:'商品名',extra:[]},
+  socks:{code:'品番', name:'商品名',extra:[]},
+};
+function parseItemMemo(memo){
+  if(!memo)return {};
+  try{const j=JSON.parse(memo);return typeof j==='object'?j:{note:memo};}catch{return {note:memo};}
+}
+function getItemProc(item){return parseItemMemo(item?.memo).p||'';}
+
 const today=()=>new Date().toISOString().slice(0,10);
 const ym=s=>s?s.slice(0,7):'';
 const fmt=n=>{const v=parseInt(n);return isNaN(v)?'—':v.toLocaleString('ja-JP');};
@@ -992,10 +1013,11 @@ function renderSumDetail(yrecs,facGroups){
 ════════════════════════════════════════════════════ */
 function renderMaster(){
   renderFacTable();
+  const procOpts='<option value="">全工程</option>'+Object.keys(PM).map(p=>`<option value="${p}">${PM[p].icon} ${PM[p].label}</option>`).join('');
+  const imPf=document.getElementById('im_proc_f');if(imPf)imPf.innerHTML=procOpts;
+  const pmPf=document.getElementById('pm_proc_f');if(pmPf)pmPf.innerHTML=procOpts;
   renderItemTable();
-  renderPriceTable();
-  const ps=document.getElementById('pm_fac');
-  ps.innerHTML='<option value="">全工場</option>'+factories.map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
+  filterPriceFac();
 }
 
 function renderFacTable(){
@@ -1017,16 +1039,29 @@ function renderFacTable(){
 }
 
 function renderItemTable(){
+  const pf=(document.getElementById('im_proc_f')?.value||'');
   const q=(document.getElementById('im_q')?.value||'').toLowerCase();
-  const rows=items.filter(i=>!q||(i.item_code+' '+(i.item_name||'')).toLowerCase().includes(q));
+  const rows=items.filter(i=>{
+    const meta=parseItemMemo(i.memo);
+    if(pf&&meta.p!==pf)return false;
+    if(q&&!(i.item_code+' '+(i.item_name||'')+' '+(meta.note||'')).toLowerCase().includes(q))return false;
+    return true;
+  });
   const el=document.getElementById('item-table');
   if(!rows.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📦</div>品番が登録されていません</div>`;return;}
-  let h=`<table><thead><tr><th>品番</th><th>商品名</th><th>備考</th><th></th></tr></thead><tbody>`;
+  let h=`<table><thead><tr><th>工程</th><th>コード</th><th>名称</th><th>詳細</th><th></th></tr></thead><tbody>`;
   rows.forEach(i=>{
+    const meta=parseItemMemo(i.memo);
+    const proc=meta.p||'';
+    const pm=PM[proc]||{};
+    const im=ITEM_META[proc]||{code:'品番',name:'商品名',extra:[]};
+    const extras=im.extra.map(e=>meta[e.key]?`${e.label}:${meta[e.key]}`:'').filter(Boolean).join(' / ');
+    const detail=[extras,meta.note||''].filter(Boolean).join('  ');
     h+=`<tr>
+      <td>${proc?`<span class="badge ${pm.badge||''}">${pm.icon||''} ${pm.label||proc}</span>`:'<span style="color:var(--tx3)">—</span>'}</td>
       <td class="mono">${i.item_code}</td>
       <td>${i.item_name||'—'}</td>
-      <td style="color:var(--tx3);font-size:11px;">${i.memo||''}</td>
+      <td style="color:var(--tx3);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${detail||''}</td>
       <td style="text-align:right;white-space:nowrap;">
         <button class="btn btn-s btn-sm" onclick="openItemModal('${i.id}')">編集</button>
         <button class="ibtn" onclick="delItem('${i.id}')">✕</button>
@@ -1035,11 +1070,20 @@ function renderItemTable(){
   el.innerHTML=h+'</tbody></table>';
 }
 
+function filterPriceFac(){
+  const proc=document.getElementById('pm_proc_f')?.value||'';
+  const ps=document.getElementById('pm_fac');if(!ps)return;
+  const filtered=proc?factories.filter(f=>f.process===proc):factories;
+  ps.innerHTML='<option value="">全工場</option>'+filtered.map(f=>{const pm=PM[f.process]||{};return `<option value="${f.id}">${pm.icon||''} ${f.name}</option>`;}).join('');
+  renderPriceTable();
+}
 function renderPriceTable(){
   const fid=document.getElementById('pm_fac')?.value||'';
+  const proc=document.getElementById('pm_proc_f')?.value||'';
   const q=(document.getElementById('pm_q')?.value||'').toLowerCase();
   const rows=prices.filter(p=>{
     if(fid&&p.fac_id!==fid)return false;
+    if(proc){const fac=factories.find(f=>f.id===p.fac_id);if(!fac||fac.process!==proc)return false;}
     if(q&&!p.item_code.toLowerCase().includes(q))return false;
     return true;
   });
@@ -1132,29 +1176,37 @@ async function delFac(id){
 // ── Item modal ──
 function openItemModal(id){
   const item=id?items.find(x=>x.id===id):null;
+  const meta=parseItemMemo(item?.memo);
   openModal(item?'品番 編集':'品番 追加');
+  const pOpts='<option value="">— 工程を選択 —</option>'+Object.keys(PM).map(p=>`<option value="${p}" ${meta.p===p?'selected':''}>${PM[p].icon} ${PM[p].label}</option>`).join('');
   document.getElementById('mbdy').innerHTML=`
-    <div class="fg"><label>品番 <span class="req">*</span></label>
-      <input type="text" id="im_code" value="${item?item.item_code:''}" placeholder="例：baby-leg-k-1"></div>
-    <div class="fg"><label>商品名</label>
-      <input type="text" id="im_name" value="${item?item.item_name||'':''}" placeholder="例：ベビーレッグウォーマー"></div>
-    <div class="fg"><label>備考</label>
-      <input type="text" id="im_memo_f" value="${item?item.memo||'':''}" placeholder="素材・工程メモなど"></div>`;
+    <div class="fg"><label>工程 <span class="req">*</span></label>
+      <select id="im_proc_m" onchange="renderItemModalFields()">${pOpts}</select></div>
+    <div id="im_fields"></div>`;
+  renderItemModalFields(item,meta);
   _modalSaveFn=async()=>{
+    const proc=document.getElementById('im_proc_m')?.value||'';
     const code=(document.getElementById('im_code')?.value||'').trim();
-    const name=(document.getElementById('im_name')?.value||'').trim();
-    const memo=(document.getElementById('im_memo_f')?.value||'').trim();
-    if(!code){toast('❌ 品番を入力してください');return false;}
+    if(!proc){toast('❌ 工程を選択してください');return false;}
+    if(!code){toast('❌ コードを入力してください');return false;}
     if(!_sb){toast('❌ Supabase未設定');return false;}
+    const im=ITEM_META[proc]||{extra:[]};
+    const item_name=(document.getElementById('im_name')?.value||'').trim();
+    const memoObj={p:proc};
+    const noteEl=document.getElementById('im_note');if(noteEl)memoObj.note=noteEl.value.trim();
+    im.extra.forEach(e=>{
+      const el=document.getElementById('im_ef_'+e.key);if(el)memoObj[e.key]=el.value.trim();
+    });
+    const memo=JSON.stringify(memoObj);
     try {
       if(item){
         const i=items.findIndex(x=>x.id===id);
-        items[i]={...items[i],item_code:code,item_name:name,memo};
-        const {error}=await _sb.from('items').update({item_code:code,item_name:name,memo}).eq('id',id);
+        items[i]={...items[i],item_code:code,item_name:item_name,memo};
+        const {error}=await _sb.from('items').update({item_code:code,item_name:item_name,memo}).eq('id',id);
         if(error) throw error;
       } else {
-        if(items.find(i=>i.item_code===code)){toast('❌ この品番はすでに登録されています');return false;}
-        const newItem={id:uid(),item_code:code,item_name:name,memo};
+        if(items.find(i=>i.item_code===code)){toast('❌ このコードはすでに登録されています');return false;}
+        const newItem={id:uid(),item_code:code,item_name:item_name,memo};
         items.push(newItem);
         const {error}=await _sb.from('items').insert(newItem);
         if(error) throw error;
@@ -1163,6 +1215,28 @@ function openItemModal(id){
     } catch(e){toast('❌ エラー: '+e.message,4000);return false;}
   };
 }
+function renderItemModalFields(item,meta){
+  const proc=document.getElementById('im_proc_m')?.value||'';
+  const el=document.getElementById('im_fields');if(!el)return;
+  if(!proc){el.innerHTML='';return;}
+  const im=ITEM_META[proc]||{code:'品番',name:'商品名',extra:[]};
+  const m=meta||parseItemMemo(item?.memo)||{};
+  const codeVal=item?.item_code||'';
+  const nameVal=item?.item_name||'';
+  let h=`<div class="fg"><label>${im.code} <span class="req">*</span></label>
+      <input type="text" id="im_code" value="${codeVal}" placeholder="コードを入力"></div>
+    <div class="fg"><label>${im.name}</label>
+      <input type="text" id="im_name" value="${nameVal}" placeholder="名称を入力"></div>`;
+  im.extra.forEach(e=>{
+    h+=`<div class="fg"><label>${e.label}</label>
+      <input type="text" id="im_ef_${e.key}" value="${m[e.key]||''}" placeholder="${e.label}を入力"></div>`;
+  });
+  h+=`<div class="fg"><label>備考</label>
+      <input type="text" id="im_note" value="${m.note||''}" placeholder="メモ"></div>`;
+  el.innerHTML=h;
+}
+
+
 async function delItem(id){
   if(!confirm('この品番を削除しますか？'))return;
   if(!_sb){toast('❌ Supabase未設定');return;}
