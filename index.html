@@ -424,6 +424,7 @@ if(SUPABASE_URL && SUPABASE_URL.startsWith('https://')){
 let deliveries=[], factories=[], items=[], prices=[], pendingRows=[];
 let sumYear=new Date().getFullYear();
 let _modalSaveFn=null;
+let _editItem=null;
 
 const uid=()=>Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,4).toUpperCase();
 const ITEM_META={
@@ -1175,7 +1176,8 @@ async function delFac(id){
 
 // ── Item modal ──
 function openItemModal(id){
-  const item=id?items.find(x=>x.id===id):null;
+  const item=id?items.find(x=>String(x.id)===String(id)):null;
+  _editItem=item;
   const meta=parseItemMemo(item?.memo);
   openModal(item?'品番 編集':'品番 追加');
   const pOpts='<option value="">— 工程を選択 —</option>'+Object.keys(PM).map(p=>`<option value="${p}" ${meta.p===p?'selected':''}>${PM[p].icon} ${PM[p].label}</option>`).join('');
@@ -1200,7 +1202,7 @@ function openItemModal(id){
     const memo=JSON.stringify(memoObj);
     try {
       if(item){
-        const i=items.findIndex(x=>x.id===id);
+        const i=items.findIndex(x=>String(x.id)===String(id));
         items[i]={...items[i],item_code:code,item_name:item_name,memo};
         const {error}=await _sb.from('items').update({item_code:code,item_name:item_name,memo}).eq('id',id);
         if(error) throw error;
@@ -1216,21 +1218,29 @@ function openItemModal(id){
   };
 }
 function renderItemModalFields(item,meta){
+  // onchange経由で引数なし呼び出しの場合は保存済み編集アイテムを使用
+  const it=item!==undefined?item:_editItem;
+  const mt=meta!==undefined?meta:parseItemMemo(it?.memo);
+  // onchange再描画時はDOMの現在値を引き継ぐ
+  const prevCode=document.getElementById('im_code')?.value;
+  const prevName=document.getElementById('im_name')?.value;
   const proc=document.getElementById('im_proc_m')?.value||'';
   const el=document.getElementById('im_fields');if(!el)return;
-  if(!proc){el.innerHTML='';return;}
+  if(!proc&&!it){el.innerHTML='';return;}
   const im=ITEM_META[proc]||{code:'品番',name:'商品名',extra:[]};
-  const m=meta||parseItemMemo(item?.memo)||{};
-  const codeVal=item?.item_code||'';
-  const nameVal=item?.item_name||'';
+  const m=mt||{};
+  const codeVal=prevCode!==undefined?prevCode:(it?.item_code||'');
+  const nameVal=prevName!==undefined?prevName:(it?.item_name||'');
   let h=`<div class="fg"><label>${im.code} <span class="req">*</span></label>
       <input type="text" id="im_code" value="${codeVal}" placeholder="コードを入力"></div>
     <div class="fg"><label>${im.name}</label>
       <input type="text" id="im_name" value="${nameVal}" placeholder="名称を入力"></div>`;
-  im.extra.forEach(e=>{
-    h+=`<div class="fg"><label>${e.label}</label>
-      <input type="text" id="im_ef_${e.key}" value="${m[e.key]||''}" placeholder="${e.label}を入力"></div>`;
-  });
+  if(proc){
+    im.extra.forEach(e=>{
+      h+=`<div class="fg"><label>${e.label}</label>
+        <input type="text" id="im_ef_${e.key}" value="${m[e.key]||''}" placeholder="${e.label}を入力"></div>`;
+    });
+  }
   h+=`<div class="fg"><label>備考</label>
       <input type="text" id="im_note" value="${m.note||''}" placeholder="メモ"></div>`;
   el.innerHTML=h;
@@ -1243,7 +1253,7 @@ async function delItem(id){
   try {
     const {error}=await _sb.from('items').delete().eq('id',id);
     if(error) throw error;
-    items=items.filter(i=>i.id!==id);
+    items=items.filter(i=>String(i.id)!==String(id));
     renderItemTable();toast('🗑 削除しました');
   } catch(e){toast('❌ エラー: '+e.message,4000);}
 }
