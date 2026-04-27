@@ -285,6 +285,7 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
         <span class="card-ttl">工場マスタ</span>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-s btn-sm" onclick="exportFactoriesCSV()">⬇ CSV</button>
+          <label class="btn btn-s btn-sm" style="cursor:pointer;">⬆ CSV<input type="file" accept=".csv" style="display:none" onchange="importFactoriesCSV(this.files[0]);this.value=''"></label>
           <button class="btn btn-p btn-sm" onclick="openFacModal()">＋ 工場を追加</button>
         </div>
       </div>
@@ -297,6 +298,7 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
         <span class="card-ttl">品番マスタ</span>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-s btn-sm" onclick="exportItemsCSV()">⬇ CSV</button>
+          <label class="btn btn-s btn-sm" style="cursor:pointer;">⬆ CSV<input type="file" accept=".csv" style="display:none" onchange="importItemsCSV(this.files[0]);this.value=''"></label>
           <button id="bulk-edit-btn" class="btn btn-s btn-sm" onclick="toggleItemBulkEdit()">✏ 一括編集</button>
           <button class="btn btn-p btn-sm" onclick="openItemModal()">＋ 品番を追加</button>
         </div>
@@ -316,6 +318,7 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
         <span class="card-ttl">単価マスタ（工場 × 品番）</span>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-s btn-sm" onclick="exportPricesCSV()">⬇ CSV</button>
+          <label class="btn btn-s btn-sm" style="cursor:pointer;">⬆ CSV<input type="file" accept=".csv" style="display:none" onchange="importPricesCSV(this.files[0]);this.value=''"></label>
           <button class="btn btn-p btn-sm" onclick="openPriceModal()">＋ 単価を登録</button>
         </div>
       </div>
@@ -1474,6 +1477,134 @@ function exportAllBackup(){
   setTimeout(()=>{if(items.length)exportItemsCSV();},800);
   setTimeout(()=>{if(prices.length)exportPricesCSV();},1200);
   toast('💾 全データバックアップ中（最大4ファイル）',3000);
+}
+
+/* ════════════════════════════════════════════════════
+   CSV IMPORT
+════════════════════════════════════════════════════ */
+function parseCSV(text){
+  const str=text.startsWith('﻿')?text.slice(1):text;
+  return str.split(/\r?\n/).filter(l=>l.trim()).map(line=>{
+    const cells=[];let inQ=false,cell='';
+    for(let i=0;i<line.length;i++){
+      const c=line[i];
+      if(c==='"'){if(inQ&&line[i+1]==='"'){cell+='"';i++;}else inQ=!inQ;}
+      else if(c===','&&!inQ){cells.push(cell.trim());cell='';}
+      else cell+=c;
+    }
+    cells.push(cell.trim());
+    return cells;
+  });
+}
+
+/* ヘッダー列インデックス検索（完全一致優先、部分一致フォールバック） */
+function colIdx(headers,...candidates){
+  const norm=h=>h.trim().replace(/[（）()\s【】「」円]/g,'').toLowerCase();
+  for(const c of candidates){
+    const i=headers.findIndex(h=>norm(h)===norm(c));
+    if(i>=0)return i;
+  }
+  for(const c of candidates){
+    const i=headers.findIndex(h=>norm(h).includes(norm(c)));
+    if(i>=0)return i;
+  }
+  return -1;
+}
+
+async function importFactoriesCSV(file){
+  if(!file||!_sb)return;
+  const text=await file.text();
+  const rows=parseCSV(text);
+  if(rows.length<2){toast('⚠ データがありません');return;}
+  const H=rows[0];
+  const iName=colIdx(H,'工場名','name');
+  const iProc=colIdx(H,'工程','process');
+  const iUnit=colIdx(H,'数量単位','単位','unit');
+  if(iName<0){toast('❌ 「工場名」列が見つかりません');return;}
+  const procMap={};
+  Object.entries(PM).forEach(([k,v])=>{procMap[v.label]=k;procMap[k]=k;});
+  const existing=new Set(factories.map(f=>f.name));
+  const toAdd=[];
+  for(const r of rows.slice(1)){
+    const name=r[iName]?.trim();
+    if(!name||existing.has(name))continue;
+    const procLabel=iProc>=0?(r[iProc]?.trim()||''):'';
+    const procKey=procMap[procLabel]||procLabel||'sew';
+    toAdd.push({id:uid(),name,process:procKey,unit:iUnit>=0?(r[iUnit]?.trim()||'枚'):'枚'});
+    existing.add(name);
+  }
+  if(!toAdd.length){toast('⚠ 新規追加なし（工場名重複スキップ）');return;}
+  const{error}=await _sb.from('factories').insert(toAdd);
+  if(error){toast('❌ 保存エラー: '+error.message);return;}
+  factories.push(...toAdd);
+  toast(`✅ 工場を${toAdd.length}件追加しました`);
+  renderFacTable();
+}
+
+async function importItemsCSV(file){
+  if(!file||!_sb)return;
+  const text=await file.text();
+  const rows=parseCSV(text);
+  if(rows.length<2){toast('⚠ データがありません');return;}
+  const H=rows[0];
+  const iId  =colIdx(H,'品番ID');
+  const iCode =colIdx(H,'品番','商品コード','item_code');
+  const iName =colIdx(H,'商品名','item_name');
+  const iMemo =colIdx(H,'備考','memo');
+  if(iCode<0){toast('❌ 「品番」列が見つかりません');return;}
+  const existing=new Set(items.map(i=>i.item_code));
+  const toAdd=[];
+  for(const r of rows.slice(1)){
+    const code=r[iCode]?.trim();
+    if(!code||existing.has(code))continue;
+    toAdd.push({
+      id:(iId>=0&&r[iId]?.trim()&&r[iId].trim()!==code)?r[iId].trim():uid(),
+      item_code:code,
+      item_name:iName>=0?(r[iName]?.trim()||''):'',
+      memo:iMemo>=0?(r[iMemo]?.trim()||''):''
+    });
+    existing.add(code);
+  }
+  if(!toAdd.length){toast('⚠ 新規追加なし（品番重複スキップ）');return;}
+  let added=0;
+  for(let i=0;i<toAdd.length;i+=100){
+    const batch=toAdd.slice(i,i+100);
+    const{error}=await _sb.from('items').insert(batch);
+    if(!error){items.push(...batch);added+=batch.length;}
+    else{toast('❌ 一部保存エラー: '+error.message);break;}
+  }
+  toast(`✅ 品番を${added}件追加しました`);
+  renderItemTable();
+}
+
+async function importPricesCSV(file){
+  if(!file||!_sb)return;
+  const text=await file.text();
+  const rows=parseCSV(text);
+  if(rows.length<2){toast('⚠ データがありません');return;}
+  const H=rows[0];
+  const iFacId  =colIdx(H,'工場ID','fac_id');
+  const iFacName=colIdx(H,'工場名','name');
+  const iCode   =colIdx(H,'品番','item_code');
+  const iPrice  =colIdx(H,'単価','unit_price');
+  if(iCode<0||iPrice<0){toast('❌ 「品番」または「単価」列が見つかりません');return;}
+  const toProcess=[];
+  for(const r of rows.slice(1)){
+    const code=r[iCode]?.trim();
+    const price=parseFloat((r[iPrice]?.trim()||'').replace(/,/g,''));
+    if(!code||isNaN(price)||price<=0)continue;
+    let fid=iFacId>=0?(r[iFacId]?.trim()||''):'';
+    if(!fid&&iFacName>=0){
+      const fn=r[iFacName]?.trim();
+      fid=factories.find(f=>f.name===fn)?.id||'';
+    }
+    if(fid)toProcess.push({fid,code,price});
+  }
+  if(!toProcess.length){toast('⚠ 有効なデータがありません（工場IDまたは工場名が必要）');return;}
+  toast(`⏳ ${toProcess.length}件の単価を処理中...`,8000);
+  for(const{fid,code,price}of toProcess)await upsertPrice(fid,code,price);
+  toast(`✅ 単価を${toProcess.length}件処理しました`);
+  renderPriceTable();
 }
 
 /* ════════════════════════════════════════════════════
