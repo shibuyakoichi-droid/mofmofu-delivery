@@ -297,6 +297,7 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
         <span class="card-ttl">品番マスタ</span>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-s btn-sm" onclick="exportItemsCSV()">⬇ CSV</button>
+          <button id="bulk-edit-btn" class="btn btn-s btn-sm" onclick="toggleItemBulkEdit()">✏ 一括編集</button>
           <button class="btn btn-p btn-sm" onclick="openItemModal()">＋ 品番を追加</button>
         </div>
       </div>
@@ -422,6 +423,7 @@ if(SUPABASE_URL && SUPABASE_URL.startsWith('https://')){
    DATA (in-memory)
 ════════════════════════════════════════════════════ */
 let deliveries=[], factories=[], items=[], prices=[], pendingRows=[];
+let _itemBulkEdit=false,_itemBulkOrig={},_erowIdx=0,_erowActive=[];
 let sumYear=new Date().getFullYear();
 let _modalSaveFn=null;
 let _editItem=null;
@@ -542,7 +544,7 @@ function renderEntry(){
   document.getElementById('entry-recent').innerHTML=delivTableHTML(deliveries.slice(0,8),false);
 }
 
-function onEFFactory(keep){
+function onEFFactory(){
   const fid=document.getElementById('ef_factory').value;
   const fac=factories.find(f=>f.id===fid);
   const pill=document.getElementById('ef_proc_pill');
@@ -552,255 +554,140 @@ function onEFFactory(keep){
     dyn.innerHTML='<div style="padding:24px;text-align:center;color:var(--tx3);font-size:13px;">↑ まず工場名を選択してください</div>';
     return;
   }
-
   const p=PM[fac.process]||{};
   pill.innerHTML=`<div class="proc-pill" style="color:${p.col};border-color:${p.col};background:${p.bg};">${p.icon} ${p.label} / ${fac.unit}単価</div>`;
-
-  const extra=EXTRA[fac.process]||[];
   const dlId='dl_ef';
   const dl=`<datalist id="${dlId}">${items.map(i=>`<option value="${i.item_code}">${i.item_name||''}</option>`).join('')}</datalist>`;
-
-  const prevCode=keep?(document.getElementById('ef_item_code')?.value||''):'';
-  const prevUp  =keep?(document.getElementById('ef_unit_price')?.value||''):'';
-
-  const extraHTML=extra.map(e=>`
-    <div class="fg"><label>${e.label}</label>
-      <input type="text" id="ef_${e.key}" placeholder="${e.ph||''}" value="${keep?(document.getElementById('ef_'+e.key)?.value||''):''}">
-    </div>`).join('');
-
-  const mainCols=4+extra.length;
+  _erowIdx=0; _erowActive=[];
+  const extraCols=(EXTRA[fac.process]||[]).map(e=>`<th>${e.label}</th>`).join('');
   dyn.innerHTML=`${dl}
-  <div class="grid" style="grid-template-columns:1fr 1fr repeat(${Math.min(2+extra.length,4)},1fr);margin-bottom:10px;">
-    <div class="fg">
-      <label>品番 <span class="req">*</span></label>
-      <input type="text" id="ef_item_code" list="${dlId}" placeholder="例：baby-leg-k-1"
-        value="${prevCode}" oninput="onEFItemCode()">
-    </div>
-    <div class="fg">
-      <label>商品名</label>
-      <input type="text" id="ef_item_name_disp" class="calc-out" placeholder="品番選択で自動表示" readonly
-        value="${keep?(document.getElementById('ef_item_name_disp')?.value||''):''}">
-    </div>
-    <div class="fg">
-      <label>カラー / 色番</label>
-      <input type="text" id="ef_color" placeholder="例：オフ白" value="${keep?(document.getElementById('ef_color')?.value||''):''}">
-    </div>
-    <div class="fg">
-      <label>サイズ / 属性</label>
-      <input type="text" id="ef_attr" placeholder="例：50-70" value="${keep?(document.getElementById('ef_attr')?.value||''):''}">
-    </div>
-    ${extraHTML}
+  <div style="overflow-x:auto;margin-top:4px;">
+    <table id="etbl" style="min-width:680px;">
+      <thead><tr>
+        <th>品番</th><th style="min-width:120px">商品名</th>
+        <th style="min-width:70px">色</th><th style="min-width:70px">属性</th>${extraCols}
+        <th style="text-align:right;min-width:70px">数量(${fac.unit})</th>
+        <th style="text-align:right;min-width:80px">単価(円)</th>
+        <th style="text-align:right;min-width:80px">金額(円)</th>
+        <th style="min-width:90px">メモ</th><th style="width:28px"></th>
+      </tr></thead>
+      <tbody id="etbody"></tbody>
+    </table>
   </div>
-  <div class="grid" style="grid-template-columns:120px 180px 160px 1fr auto;align-items:end;gap:10px;">
-    <div class="fg">
-      <label>数量（${fac.unit}）<span class="req">*</span></label>
-      <input type="number" id="ef_qty" placeholder="0" min="0" step="any"
-        value="${keep?(document.getElementById('ef_qty')?.value||''):''}" oninput="calcEF()">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--bdr);">
+    <button class="btn btn-s" onclick="addERow()">＋ 行追加</button>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span id="erow-total" style="font-size:13px;font-weight:700;color:var(--ac);"></span>
+      <button class="btn btn-p" onclick="saveERows()">💾 まとめて保存</button>
     </div>
-    <div class="fg">
-      <label>単価（円/${fac.unit}）<span id="ef_up_badge"></span></label>
-      <input type="number" id="ef_unit_price" placeholder="品番選択で自動入力" min="0"
-        value="${prevUp}" oninput="calcEF()">
-      <span class="hint" id="ef_up_hint"></span>
-    </div>
-    <div class="fg">
-      <label>金額（円）</label>
-      <input type="number" id="ef_amount" class="calc-out" placeholder="自動計算" readonly>
-    </div>
-    <div class="fg">
-      <label>備考</label>
-      <input type="text" id="ef_memo" placeholder="ロット・メモなど"
-        value="${keep?(document.getElementById('ef_memo')?.value||''):''}">
-    </div>
-    <div style="padding-bottom:1px;">
-      <button class="btn btn-p" id="save-entry-btn" onclick="addToPending()">＋ リストに追加</button>
-    </div>
-  </div>
-  <div id="ef_pending"></div>`;
-
-  if(prevCode) onEFItemCode();
-  calcEF();
-  renderPendingRows();
+  </div>`;
+  addERow();
 }
 
-function onEFItemCode(){
+function addERow(){
   const fid=document.getElementById('ef_factory')?.value;
-  const code=(document.getElementById('ef_item_code')?.value||'').trim();
-  const up=getPrice(fid,code);
-  const upEl=document.getElementById('ef_unit_price');
-  const hint=document.getElementById('ef_up_hint');
-  const badge=document.getElementById('ef_up_badge');
-  const nameEl=document.getElementById('ef_item_name_disp');
-  const item=items.find(i=>i.item_code===code);
+  const fac=factories.find(f=>f.id===fid);
+  if(!fac) return;
+  const i=_erowIdx++; _erowActive.push(i);
+  const s1='style="width:100%;box-sizing:border-box;border:1px solid var(--bdr2);border-radius:4px;padding:3px 5px;font-family:inherit;font-size:12px;"';
+  const s2='style="width:100%;box-sizing:border-box;border:1px solid var(--bdr2);border-radius:4px;padding:3px 5px;font-family:inherit;font-size:12px;text-align:right;"';
+  const s3='style="width:100%;box-sizing:border-box;border:1px solid var(--bdr);border-radius:4px;padding:3px 5px;font-family:inherit;font-size:12px;background:var(--sur2);color:var(--tx2);"';
+  const extraCells=(EXTRA[fac.process]||[]).map(e=>`<td style="padding:2px 3px"><input ${s1} id="eex_${e.key}_${i}" placeholder="${e.ph||e.label}"></td>`).join('');
+  const tr=document.createElement('tr');
+  tr.id=`er${i}`;
+  tr.innerHTML=`
+    <td style="padding:2px 3px"><input ${s1} id="ec${i}" list="${dlId}" placeholder="品番" onchange="onERowCode(${i})" oninput="onERowCode(${i})"></td>
+    <td style="padding:2px 3px"><input ${s3} id="en${i}" readonly placeholder="自動"></td>
+    <td style="padding:2px 3px"><input ${s1} id="ecol${i}" placeholder="色"></td>
+    <td style="padding:2px 3px"><input ${s1} id="eat${i}" placeholder="属性"></td>
+    ${extraCells}
+    <td style="padding:2px 3px"><input ${s2} id="eq${i}" type="number" min="0" placeholder="0" oninput="calcERow(${i})"></td>
+    <td style="padding:2px 3px"><input ${s2} id="eup${i}" type="number" min="0" placeholder="0" oninput="calcERow(${i})"></td>
+    <td style="padding:2px 3px"><input ${s3} id="eam${i}" type="number" readonly></td>
+    <td style="padding:2px 3px"><input ${s1} id="emo${i}" placeholder="メモ"></td>
+    <td style="padding:2px 3px;text-align:center"><button class="ibtn" onclick="removeERow(${i})">✕</button></td>`;
+  document.getElementById('etbody')?.appendChild(tr);
+  document.getElementById(`ec${i}`)?.focus();
+}
+
+function removeERow(i){
+  document.getElementById(`er${i}`)?.remove();
+  _erowActive=_erowActive.filter(x=>x!==i);
+  updateERowTotal();
+}
+
+function onERowCode(i){
+  const fid=document.getElementById('ef_factory')?.value;
+  const code=(document.getElementById(`ec${i}`)?.value||'').trim();
+  const item=items.find(x=>x.item_code===code);
+  const nameEl=document.getElementById(`en${i}`);
   if(nameEl) nameEl.value=item?.item_name||'';
-  if(upEl && up!==''){
-    upEl.value=up;
-    upEl.classList.add('price-auto');
-    if(hint) hint.textContent=`マスタ単価：¥${fmt(up)}`;
-    if(badge) badge.innerHTML=`<span class="new-price-badge">マスタから自動入力</span>`;
-  } else {
-    if(upEl) upEl.classList.remove('price-auto');
-    if(hint) hint.textContent=code?'この品番の単価は未登録です':'';
-    if(badge) badge.innerHTML='';
-  }
-  calcEF();
+  const up=getPrice(fid,code);
+  const upEl=document.getElementById(`eup${i}`);
+  if(upEl&&up!==''){upEl.value=up;upEl.style.background='var(--acl)';}
+  else if(upEl){upEl.style.background='';}
+  calcERow(i);
 }
 
-function calcEF(){
-  const qty=document.getElementById('ef_qty')?.value;
-  const up=document.getElementById('ef_unit_price')?.value;
-  const el=document.getElementById('ef_amount');
-  if(el) el.value=calcAmt(qty,up)!==''?calcAmt(qty,up):'';
+function calcERow(i){
+  const qty=document.getElementById(`eq${i}`)?.value;
+  const up=document.getElementById(`eup${i}`)?.value;
+  const el=document.getElementById(`eam${i}`);
+  const a=calcAmt(qty,up);
+  if(el) el.value=a!==''?a:'';
+  updateERowTotal();
 }
 
-function addToPending(){
+function updateERowTotal(){
+  let tot=0;
+  _erowActive.forEach(i=>{tot+=parseFloat(document.getElementById(`eam${i}`)?.value)||0;});
+  const el=document.getElementById('erow-total');
+  if(el) el.textContent=tot>0?`合計: ¥${fmt(tot)}`:'';
+}
+
+async function saveERows(){
+  if(!_sb){toast('❌ Supabase未設定');return;}
   const fid=document.getElementById('ef_factory')?.value;
   const fac=factories.find(f=>f.id===fid);
   const date=document.getElementById('ef_date')?.value||'';
-  const code=(document.getElementById('ef_item_code')?.value||'').trim();
   if(!fac){toast('❌ 工場を選択してください');return;}
   if(!date){toast('❌ 納品日を入力してください');return;}
-  if(!code){toast('❌ 品番を入力してください');return;}
-  const qty=document.getElementById('ef_qty')?.value||'';
-  const up=document.getElementById('ef_unit_price')?.value||'';
-  const amt=calcAmt(qty,up);
-  const extra={};
-  (EXTRA[fac.process]||[]).forEach(e=>{
-    const el=document.getElementById('ef_'+e.key);if(el)extra[e.key]=el.value.trim();
-  });
-  pendingRows.push({
-    fac_id:fid,fac_name:fac.name,process:fac.process,date,
-    item_code:code,
-    color:document.getElementById('ef_color')?.value?.trim()||'',
-    attr:document.getElementById('ef_attr')?.value?.trim()||'',
-    ...extra,
-    qty,unit:fac.unit,unit_price:up,amount:amt!==''?amt:'',
-    memo:document.getElementById('ef_memo')?.value?.trim()||'',
-  });
-  ['ef_item_code','ef_item_name_disp','ef_color','ef_attr','ef_qty','ef_memo'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  (EXTRA[fac.process]||[]).forEach(e=>{const el=document.getElementById('ef_'+e.key);if(el)el.value='';});
-  const aEl=document.getElementById('ef_amount');if(aEl)aEl.value='';
-  const upEl=document.getElementById('ef_unit_price');if(upEl){upEl.value='';upEl.classList.remove('price-auto');}
-  const hint=document.getElementById('ef_up_hint');if(hint)hint.textContent='';
-  document.getElementById('ef_item_code')?.focus();
-  renderPendingRows();
-  toast(`✅ リストに追加（${pendingRows.length}件）`);
-}
-
-function renderPendingRows(){
-  const area=document.getElementById('ef_pending');if(!area)return;
-  if(!pendingRows.length){area.innerHTML='';return;}
-  const tot=pendingRows.reduce((s,r)=>s+(parseInt(r.amount)||0),0);
-  let h=`<div style="margin-top:16px;border-top:2px dashed var(--bdr);padding-top:14px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-      <span style="font-size:12px;font-weight:700;color:var(--tx2);">追加済みリスト（${pendingRows.length}件）</span>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <span style="font-size:13px;color:var(--ac);font-weight:700;">合計: ¥${fmt(tot)}</span>
-        <button class="btn btn-p" onclick="saveBatch()">💾 まとめて保存（${pendingRows.length}件）</button>
-        <button class="btn btn-d btn-sm" onclick="clearPending()">全削除</button>
-      </div>
-    </div>
-    <table><thead><tr>
-      <th>工場</th><th>納品日</th><th>品番</th><th>カラー/属性</th>
-      <th style="text-align:right;">数量</th><th style="text-align:right;">単価</th>
-      <th style="text-align:right;">金額</th><th>備考</th><th></th>
-    </tr></thead><tbody>`;
-  pendingRows.forEach((r,i)=>{
-    const ca=[r.color,r.attr,r.color_no].filter(Boolean).join('/');
-    const pm=PM[r.process]||{};
-    h+=`<tr>
-      <td style="font-size:11px;"><span class="badge ${pm.badge||''}">${pm.icon||''}</span> ${r.fac_name}</td>
-      <td style="font-size:11px;">${r.date}</td>
-      <td class="mono">${r.item_code}</td>
-      <td style="font-size:11px;color:var(--tx2);">${ca||'—'}</td>
-      <td class="r">${fq(r.qty)} <span style="font-size:10px;color:var(--tx3);">${r.unit||''}</span></td>
-      <td class="r" style="font-size:11px;">¥${fmt(r.unit_price)}</td>
-      <td class="r" style="font-weight:600;">¥${fmt(r.amount)}</td>
-      <td style="font-size:11px;color:var(--tx3);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.memo||''}</td>
-      <td><button class="ibtn" onclick="removePending(${i})" title="削除">✕</button></td>
-    </tr>`;
-  });
-  h+='</tbody></table></div>';
-  area.innerHTML=h;
-}
-
-async function saveBatch(){
-  if(!_sb){toast('❌ Supabase未設定');return;}
-  if(!pendingRows.length){toast('⚠ 保存するデータがありません');return;}
-  try {
-    const recs=pendingRows.map(r=>({...r,id:uid(),created_at:new Date().toISOString()}));
-    const {error}=await _sb.from('deliveries').insert(recs);
+  const proc=fac.process;
+  const recs=[];
+  for(const i of _erowActive){
+    const code=(document.getElementById(`ec${i}`)?.value||'').trim();
+    if(!code) continue;
+    const qty=document.getElementById(`eq${i}`)?.value||'';
+    const up=document.getElementById(`eup${i}`)?.value||'';
+    const amt=calcAmt(qty,up);
+    const extra={};
+    (EXTRA[proc]||[]).forEach(e=>{const el=document.getElementById(`eex_${e.key}_${i}`);if(el)extra[e.key]=el.value.trim();});
+    recs.push({id:uid(),fac_id:fid,fac_name:fac.name,process:proc,date,
+      item_code:code,
+      color:document.getElementById(`ecol${i}`)?.value?.trim()||'',
+      attr:document.getElementById(`eat${i}`)?.value?.trim()||'',
+      ...extra,
+      qty,unit:fac.unit,unit_price:up,amount:amt!==''?amt:'',
+      memo:document.getElementById(`emo${i}`)?.value?.trim()||'',
+      created_at:new Date().toISOString()});
+  }
+  if(!recs.length){toast('⚠ 品番が入力されていません');return;}
+  const btn=document.querySelector('[onclick="saveERows()"]');
+  if(btn){btn.disabled=true;btn.textContent='保存中...';}
+  try{
+    const{error}=await _sb.from('deliveries').insert(recs);
     if(error) throw error;
     for(const r of recs){
       if(r.unit_price&&parseFloat(r.unit_price)>0) await upsertPrice(r.fac_id,r.item_code,r.unit_price);
       deliveries.unshift(r);
     }
-    const n=recs.length;
-    pendingRows=[];
-    toast(`✅ ${n}件を保存しました`);
-    renderPendingRows();
+    toast(`✅ ${recs.length}件を保存しました`);
+    onEFFactory();
     renderEntry();
-  } catch(e){
-    console.error(e);toast('❌ 保存エラー: '+e.message,4000);
-  }
+  }catch(e){console.error(e);toast('❌ 保存エラー: '+e.message,4000);}
+  finally{if(btn){btn.disabled=false;btn.textContent='💾 まとめて保存';}}
 }
 
-function removePending(i){pendingRows.splice(i,1);renderPendingRows();}
-function clearPending(){
-  if(!confirm(`${pendingRows.length}件のリストをすべて削除しますか？`))return;
-  pendingRows=[];renderPendingRows();
-}
-
-async function saveEntry(){
-  if(!_sb){toast('❌ Supabase未設定');return;}
-  const fid=document.getElementById('ef_factory')?.value;
-  const fac=factories.find(f=>f.id===fid);
-  const date=document.getElementById('ef_date')?.value||'';
-  const code=(document.getElementById('ef_item_code')?.value||'').trim();
-  if(!fac){toast('❌ 工場を選択してください');return;}
-  if(!date){toast('❌ 納品日を入力してください');return;}
-  if(!code){toast('❌ 品番を入力してください');return;}
-
-  const qty=document.getElementById('ef_qty')?.value||'';
-  const up=document.getElementById('ef_unit_price')?.value||'';
-  const amt=calcAmt(qty,up);
-  const extra={};
-  (EXTRA[fac.process]||[]).forEach(e=>{
-    const el=document.getElementById('ef_'+e.key);if(el)extra[e.key]=el.value.trim();
-  });
-  const rec={
-    id:uid(),fac_id:fid,fac_name:fac.name,process:fac.process,date,
-    item_code:code,
-    color:document.getElementById('ef_color')?.value?.trim()||'',
-    attr:document.getElementById('ef_attr')?.value?.trim()||'',
-    ...extra,
-    qty,unit:fac.unit,unit_price:up,amount:amt!==''?amt:'',
-    memo:document.getElementById('ef_memo')?.value?.trim()||'',
-    created_at:new Date().toISOString(),
-  };
-
-  const btn=document.getElementById('save-entry-btn');
-  if(btn){btn.disabled=true;btn.textContent='保存中...';}
-  try {
-    const {error}=await _sb.from('deliveries').insert(rec);
-    if(error) throw error;
-    deliveries.unshift(rec);
-    if(up&&parseFloat(up)>0) await upsertPrice(fid,code,up);
-    toast('✅ 追加しました');
-    ['ef_item_code','ef_color','ef_attr','ef_qty','ef_memo'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-    (EXTRA[fac.process]||[]).forEach(e=>{const el=document.getElementById('ef_'+e.key);if(el)el.value='';});
-    const aEl=document.getElementById('ef_amount');if(aEl)aEl.value='';
-    const upEl=document.getElementById('ef_unit_price');if(upEl){upEl.value='';upEl.classList.remove('price-auto');}
-    const hint=document.getElementById('ef_up_hint');if(hint)hint.textContent='';
-    document.getElementById('ef_item_code')?.focus();
-    renderEntry();
-  } catch(e){
-    console.error(e);
-    toast('❌ 保存エラー: '+e.message,4000);
-  } finally {
-    if(btn){btn.disabled=false;btn.textContent='＋ 追加';}
-  }
-}
 
 /* ════════════════════════════════════════════════════
    DELIVERY TABLE HTML (shared)
@@ -1049,10 +936,41 @@ function renderItemTable(){
     return true;
   });
   const el=document.getElementById('item-table');
-  if(!rows.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📦</div>品番が登録されていません</div>`;return;}
+  if(!rows.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📦</div>品番が登録されていません</div>`;_itemBulkEdit=false;return;}
 
-  /* グループ化 */
-  const groups={}, singles=[];
+  /* ── 一括編集モード ── */
+  if(_itemBulkEdit){
+    _itemBulkOrig={};
+    const inpS='style="width:100%;box-sizing:border-box;border:1px solid var(--bdr2);border-radius:4px;padding:3px 6px;font-family:inherit;font-size:12px;"';
+    const selS='style="border:1px solid var(--bdr2);border-radius:4px;padding:3px 6px;font-family:inherit;font-size:12px;background:var(--bg);"';
+    let h=`<div style="padding:8px 14px;display:flex;justify-content:space-between;align-items:center;background:var(--acl);border-bottom:1px solid var(--bdr);position:sticky;top:52px;z-index:10;">
+      <span style="font-size:12px;font-weight:700;color:var(--ac);">✏ 一括編集モード（${rows.length}件表示）</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-p btn-sm" onclick="saveItemBulkEdit()">変更を保存</button>
+        <button class="btn btn-s btn-sm" onclick="toggleItemBulkEdit()">キャンセル</button>
+      </div>
+    </div>
+    <table><thead><tr><th>工程</th><th>コード</th><th>名称</th><th></th></tr></thead><tbody>`;
+    rows.forEach(i=>{
+      const meta=parseItemMemo(i.memo);
+      const proc=meta.p||'';
+      _itemBulkOrig[i.id]={item_code:i.item_code,item_name:i.item_name||'',p:proc};
+      const procOpts=`<option value="">—</option>`+Object.entries(PM).map(([k,v])=>`<option value="${k}" ${proc===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+      const safeCode=(i.item_code||'').replace(/"/g,'&quot;');
+      const safeName=(i.item_name||'').replace(/"/g,'&quot;');
+      h+=`<tr>
+        <td style="padding:3px 6px"><select ${selS} id="bp_${i.id}">${procOpts}</select></td>
+        <td style="padding:3px 6px"><input ${inpS} id="bc_${i.id}" value="${safeCode}" style="width:150px;box-sizing:border-box;border:1px solid var(--bdr2);border-radius:4px;padding:3px 6px;font-family:inherit;font-size:12px;"></td>
+        <td style="padding:3px 6px"><input ${inpS} id="bn_${i.id}" value="${safeName}"></td>
+        <td style="text-align:right;padding:3px 6px"><button class="ibtn" onclick="delItem('${i.id}')">✕</button></td></tr>`;
+    });
+    h+='</tbody></table>';
+    el.innerHTML=h;
+    return;
+  }
+
+  /* ── 通常モード（グループ表示） ── */
+  const groups={},singles=[];
   rows.forEach(i=>{
     const meta=parseItemMemo(i.memo);
     const parent=meta.parent;
@@ -1063,10 +981,8 @@ function renderItemTable(){
       singles.push(i);
     }
   });
-  /* グループの基本名：商品名から属性部分を除去 */
   Object.values(groups).forEach(g=>{
-    const first=g.items[0];
-    if(!first)return;
+    const first=g.items[0];if(!first)return;
     const meta=parseItemMemo(first.memo);
     const attrs=[meta['色'],meta['サイズ'],meta['color_no'],meta['yarn_count'],meta['item_name']].filter(Boolean);
     let name=first.item_name||'';
@@ -1075,11 +991,8 @@ function renderItemTable(){
   });
 
   let h=`<table><thead><tr><th>工程</th><th>コード</th><th>名称</th><th>SKU数</th><th></th></tr></thead><tbody>`;
-
-  /* グループ行 */
   Object.entries(groups).forEach(([parent,g])=>{
-    const proc=g.proc||'';
-    const pm=PM[proc]||{};
+    const proc=g.proc||'';const pm=PM[proc]||{};
     const gid='grp_'+parent.replace(/[^a-zA-Z0-9]/g,'_');
     h+=`<tr style="cursor:pointer;background:var(--sur2);" onclick="toggleItemGroup('${gid}')">
       <td>${proc?`<span class="badge ${pm.badge||''}">${pm.icon||''} ${pm.label||proc}</span>`:'<span style="color:var(--tx3)">—</span>'}</td>
@@ -1104,12 +1017,8 @@ function renderItemTable(){
     });
     h+=`</tbody></table></td></tr>`;
   });
-
-  /* 単独アイテム行（親コードなし） */
   singles.forEach(i=>{
-    const meta=parseItemMemo(i.memo);
-    const proc=meta.p||'';
-    const pm=PM[proc]||{};
+    const meta=parseItemMemo(i.memo);const proc=meta.p||'';const pm=PM[proc]||{};
     const im=ITEM_META[proc]||{code:'品番',name:'商品名',extra:[]};
     const extras=im.extra.map(e=>meta[e.key]?`${e.label}:${meta[e.key]}`:'').filter(Boolean).join(' / ');
     const detail=[extras,meta.note||''].filter(Boolean).join('  ');
@@ -1123,9 +1032,9 @@ function renderItemTable(){
         <button class="ibtn" onclick="delItem('${i.id}')">✕</button>
       </td></tr>`;
   });
-
   el.innerHTML=h+'</tbody></table>';
 }
+
 
 function toggleItemGroup(gid){
   const row=document.getElementById(gid);
@@ -1134,6 +1043,51 @@ function toggleItemGroup(gid){
   const open=row.style.display!=='none';
   row.style.display=open?'none':'table-row';
   if(arr)arr.textContent=open?'▶':'▼';
+}
+
+function toggleItemBulkEdit(){
+  _itemBulkEdit=!_itemBulkEdit;
+  const btn=document.getElementById('bulk-edit-btn');
+  if(btn) btn.textContent=_itemBulkEdit?'✕ キャンセル':'✏ 一括編集';
+  renderItemTable();
+}
+
+async function saveItemBulkEdit(){
+  if(!_sb) return;
+  const saveBtn=document.querySelector('[onclick="saveItemBulkEdit()"]');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='保存中...';}
+  const changed=[];
+  for(const[id,orig] of Object.entries(_itemBulkOrig)){
+    const code=(document.getElementById(`bc_${id}`)?.value||'').trim();
+    const name=(document.getElementById(`bn_${id}`)?.value||'').trim();
+    const proc=document.getElementById(`bp_${id}`)?.value||'';
+    if(code===orig.item_code&&name===orig.item_name&&proc===orig.p) continue;
+    const idx=items.findIndex(x=>x.id===id);
+    let memo={};
+    try{memo=JSON.parse(items[idx]?.memo||'{}');}catch{}
+    if(proc) memo.p=proc; else delete memo.p;
+    changed.push({id,item_code:code,item_name:name,memo:JSON.stringify(memo)});
+  }
+  if(!changed.length){
+    toast('変更はありません');
+    if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='変更を保存';}
+    return;
+  }
+  let saved=0,errs=0;
+  for(const c of changed){
+    const{error}=await _sb.from('items').update({item_code:c.item_code,item_name:c.item_name,memo:c.memo}).eq('id',c.id);
+    if(!error){
+      const idx=items.findIndex(x=>x.id===c.id);
+      if(idx>=0) items[idx]={...items[idx],...c};
+      saved++;
+    } else errs++;
+  }
+  toast(errs?`✅ ${saved}件保存 / ❌ ${errs}件エラー`:`✅ ${saved}件を更新しました`);
+  _itemBulkEdit=false;
+  const ebtn=document.getElementById('bulk-edit-btn');
+  if(ebtn) ebtn.textContent='✏ 一括編集';
+  if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='変更を保存';}
+  renderItemTable();
 }
 
 function filterPriceFac(){
