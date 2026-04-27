@@ -319,6 +319,7 @@ tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr)
         <div style="display:flex;gap:6px;">
           <button class="btn btn-s btn-sm" onclick="exportPricesCSV()">⬇ CSV</button>
           <label class="btn btn-s btn-sm" style="cursor:pointer;">⬆ CSV<input type="file" accept=".csv" style="display:none" onchange="importPricesCSV(this.files[0]);this.value=''"></label>
+          <button id="price-bulk-btn" class="btn btn-s btn-sm" onclick="togglePriceBulkEdit()">✏ 一括編集</button>
           <button class="btn btn-p btn-sm" onclick="openPriceModal()">＋ 単価を登録</button>
         </div>
       </div>
@@ -427,6 +428,7 @@ if(SUPABASE_URL && SUPABASE_URL.startsWith('https://')){
 ════════════════════════════════════════════════════ */
 let deliveries=[], factories=[], items=[], prices=[], pendingRows=[];
 let _itemBulkEdit=false,_itemBulkOrig={},_erowIdx=0,_erowActive=[];
+let _priceBulkEdit=false,_priceBulkOrig={};
 let sumYear=new Date().getFullYear();
 let _modalSaveFn=null;
 let _editItem=null;
@@ -1111,7 +1113,45 @@ function renderPriceTable(){
     return true;
   });
   const el=document.getElementById('price-table');
-  if(!rows.length){el.innerHTML=`<div class="empty"><div class="empty-icon">💴</div>単価が登録されていません</div>`;return;}
+  if(!rows.length){el.innerHTML=`<div class="empty"><div class="empty-icon">💴</div>単価が登録されていません</div>`;_priceBulkEdit=false;return;}
+
+  /* ── 一括編集モード ── */
+  if(_priceBulkEdit){
+    _priceBulkOrig={};
+    const numS='style="width:100px;box-sizing:border-box;border:1px solid var(--bdr2);border-radius:4px;padding:3px 6px;font-family:inherit;font-size:12px;text-align:right;"';
+    let h=`<div style="padding:8px 14px;display:flex;justify-content:space-between;align-items:center;background:var(--acl);border-bottom:1px solid var(--bdr);position:sticky;top:52px;z-index:10;">
+      <span style="font-size:12px;font-weight:700;color:var(--ac);">✏ 一括編集モード（${rows.length}件表示）</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-p btn-sm" onclick="savePriceBulkEdit()">変更を保存</button>
+        <button class="btn btn-s btn-sm" onclick="togglePriceBulkEdit()">キャンセル</button>
+      </div>
+    </div>
+    <table><thead><tr>
+      <th>工場</th><th>工程</th><th>品番</th>
+      <th style="text-align:right;">単価（円）</th><th>単位</th><th></th>
+    </tr></thead><tbody>`;
+    rows.forEach(pr=>{
+      const fac=factories.find(f=>f.id===pr.fac_id)||{name:pr.fac_id,process:'',unit:'—'};
+      const pm=PM[fac.process]||{};
+      _priceBulkOrig[pr.id]={unit_price:pr.unit_price};
+      h+=`<tr>
+        <td style="font-size:12px;">${fac.name}</td>
+        <td>${fac.process?`<span class="badge ${pm.badge||''}">${pm.icon||''} ${pm.label||''}</span>`:'—'}</td>
+        <td class="mono">${pr.item_code}</td>
+        <td style="text-align:right;padding:3px 6px;">
+          <input ${numS} id="pup_${pr.id}" type="number" min="0" value="${pr.unit_price}">
+        </td>
+        <td style="font-size:11px;color:var(--tx2);">${fac.unit||'—'}</td>
+        <td style="text-align:right;white-space:nowrap;">
+          <button class="ibtn" onclick="delPrice('${pr.id}')">✕</button>
+        </td></tr>`;
+    });
+    h+='</tbody></table>';
+    el.innerHTML=h;
+    return;
+  }
+
+  /* ── 通常モード ── */
   let h=`<table><thead><tr><th>工場</th><th>工程</th><th>品番</th><th style="text-align:right;">単価（円）</th><th>単位</th><th></th></tr></thead><tbody>`;
   rows.forEach(pr=>{
     const fac=factories.find(f=>f.id===pr.fac_id)||{name:pr.fac_id,process:'',unit:'—'};
@@ -1129,6 +1169,46 @@ function renderPriceTable(){
   });
   el.innerHTML=h+'</tbody></table>';
 }
+
+function togglePriceBulkEdit(){
+  _priceBulkEdit=!_priceBulkEdit;
+  const btn=document.getElementById('price-bulk-btn');
+  if(btn) btn.textContent=_priceBulkEdit?'✕ キャンセル':'✏ 一括編集';
+  renderPriceTable();
+}
+
+async function savePriceBulkEdit(){
+  if(!_sb) return;
+  const saveBtn=document.querySelector('[onclick="savePriceBulkEdit()"]');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='保存中...';}
+  const changed=[];
+  for(const[id,orig] of Object.entries(_priceBulkOrig)){
+    const val=parseFloat(document.getElementById(`pup_${id}`)?.value||'');
+    if(isNaN(val)||val===parseFloat(orig.unit_price)) continue;
+    changed.push({id,unit_price:val});
+  }
+  if(!changed.length){
+    toast('変更はありません');
+    if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='変更を保存';}
+    return;
+  }
+  let saved=0,errs=0;
+  for(const c of changed){
+    const{error}=await _sb.from('prices').update({unit_price:c.unit_price}).eq('id',c.id);
+    if(!error){
+      const idx=prices.findIndex(p=>p.id===c.id);
+      if(idx>=0) prices[idx].unit_price=c.unit_price;
+      saved++;
+    } else errs++;
+  }
+  toast(errs?`✅ ${saved}件保存 / ❌ ${errs}件エラー`:`✅ ${saved}件の単価を更新しました`);
+  _priceBulkEdit=false;
+  const ebtn=document.getElementById('price-bulk-btn');
+  if(ebtn) ebtn.textContent='✏ 一括編集';
+  if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='変更を保存';}
+  renderPriceTable();
+}
+
 
 /* ════════════════════════════════════════════════════
    MODALS
