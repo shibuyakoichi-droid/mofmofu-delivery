@@ -1050,8 +1050,63 @@ function renderItemTable(){
   });
   const el=document.getElementById('item-table');
   if(!rows.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📦</div>品番が登録されていません</div>`;return;}
-  let h=`<table><thead><tr><th>工程</th><th>コード</th><th>名称</th><th>詳細</th><th></th></tr></thead><tbody>`;
+
+  /* グループ化 */
+  const groups={}, singles=[];
   rows.forEach(i=>{
+    const meta=parseItemMemo(i.memo);
+    const parent=meta.parent;
+    if(parent){
+      if(!groups[parent])groups[parent]={proc:meta.p,items:[],baseName:''};
+      groups[parent].items.push(i);
+    } else {
+      singles.push(i);
+    }
+  });
+  /* グループの基本名：商品名から属性部分を除去 */
+  Object.values(groups).forEach(g=>{
+    const first=g.items[0];
+    if(!first)return;
+    const meta=parseItemMemo(first.memo);
+    const attrs=[meta['色'],meta['サイズ'],meta['color_no'],meta['yarn_count'],meta['item_name']].filter(Boolean);
+    let name=first.item_name||'';
+    attrs.forEach(a=>{name=name.replace(' '+a,'').trim();});
+    g.baseName=name||first.item_name||'';
+  });
+
+  let h=`<table><thead><tr><th>工程</th><th>コード</th><th>名称</th><th>SKU数</th><th></th></tr></thead><tbody>`;
+
+  /* グループ行 */
+  Object.entries(groups).forEach(([parent,g])=>{
+    const proc=g.proc||'';
+    const pm=PM[proc]||{};
+    const gid='grp_'+parent.replace(/[^a-zA-Z0-9]/g,'_');
+    h+=`<tr style="cursor:pointer;background:var(--sur2);" onclick="toggleItemGroup('${gid}')">
+      <td>${proc?`<span class="badge ${pm.badge||''}">${pm.icon||''} ${pm.label||proc}</span>`:'<span style="color:var(--tx3)">—</span>'}</td>
+      <td class="mono" style="font-weight:600">${parent}</td>
+      <td style="font-weight:500">${g.baseName}</td>
+      <td style="color:var(--tx3);font-size:11px">${g.items.length}件 <span id="arr_${gid}" style="font-size:10px">▶</span></td>
+      <td></td></tr>`;
+    h+=`<tr id="${gid}" style="display:none"><td colspan="5" style="padding:0;border-bottom:2px solid var(--bdr)">`;
+    h+=`<table style="width:100%;background:#fefdfb"><tbody>`;
+    g.items.forEach(i=>{
+      const meta=parseItemMemo(i.memo);
+      const attrs=[meta['色'],meta['サイズ'],meta['color_no'],meta['yarn_count'],meta['item_name']].filter(Boolean).join(' / ');
+      h+=`<tr>
+        <td style="width:60px"></td>
+        <td class="mono" style="padding-left:20px;color:var(--tx3)">↳ ${i.item_code}</td>
+        <td style="font-size:12px">${i.item_name||'—'}</td>
+        <td style="color:var(--tx3);font-size:11px">${attrs}</td>
+        <td style="text-align:right;white-space:nowrap;padding-right:8px">
+          <button class="btn btn-s btn-sm" onclick="openItemModal('${i.id}')">編集</button>
+          <button class="ibtn" onclick="delItem('${i.id}')">✕</button>
+        </td></tr>`;
+    });
+    h+=`</tbody></table></td></tr>`;
+  });
+
+  /* 単独アイテム行（親コードなし） */
+  singles.forEach(i=>{
     const meta=parseItemMemo(i.memo);
     const proc=meta.p||'';
     const pm=PM[proc]||{};
@@ -1068,7 +1123,17 @@ function renderItemTable(){
         <button class="ibtn" onclick="delItem('${i.id}')">✕</button>
       </td></tr>`;
   });
+
   el.innerHTML=h+'</tbody></table>';
+}
+
+function toggleItemGroup(gid){
+  const row=document.getElementById(gid);
+  const arr=document.getElementById('arr_'+gid);
+  if(!row)return;
+  const open=row.style.display!=='none';
+  row.style.display=open?'none':'table-row';
+  if(arr)arr.textContent=open?'▶':'▼';
 }
 
 function filterPriceFac(){
