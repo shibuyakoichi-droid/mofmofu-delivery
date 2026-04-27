@@ -601,7 +601,7 @@ function addERow(){
   const tr=document.createElement('tr');
   tr.id=`er${i}`;
   tr.innerHTML=`
-    <td style="padding:2px 3px"><input ${s1} id="ec${i}" list="${dlId}" placeholder="品番" onchange="onERowCode(${i})" oninput="onERowCode(${i})"></td>
+    <td style="padding:2px 3px"><input ${s1} id="ec${i}" list="dl_ef" placeholder="品番" onchange="onERowCode(${i})" oninput="onERowCode(${i})"></td>
     <td style="padding:2px 3px"><input ${s3} id="en${i}" readonly placeholder="自動"></td>
     <td style="padding:2px 3px"><input ${s1} id="ecol${i}" placeholder="色"></td>
     <td style="padding:2px 3px"><input ${s1} id="eat${i}" placeholder="属性"></td>
