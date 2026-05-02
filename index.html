@@ -380,7 +380,7 @@ const PM = {
 
 const EXTRA = {
   knit: [],
-  dye:  [{key:'color_no', label:'色番', ph:'例：#12'}],
+  dye:  [],
   cut:  [],
   sew:  [],
   yarn: [{key:'yarn_count',label:'番手',ph:'例：2/48'}],
@@ -564,15 +564,22 @@ function onEFFactory(){
   const dlId='dl_ef';
   const dl=`<datalist id="${dlId}">${items.map(i=>`<option value="${i.item_code}">${i.item_name||''}</option>`).join('')}</datalist>`;
   _erowIdx=0; _erowActive=[];
-  const extraCols=(EXTRA[fac.process]||[]).map(e=>`<th>${e.label}</th>`).join('');
+  const isFabric=fac.process==='knit'||fac.process==='dye';
+  const extraCols=isFabric?'':(EXTRA[fac.process]||[]).map(e=>`<th>${e.label}</th>`).join('');
   dyn.innerHTML=`${dl}
   <div style="overflow-x:auto;margin-top:4px;">
-    <table id="etbl" style="min-width:680px;">
+    <table id="etbl" style="min-width:${isFabric?860:680}px;">
       <thead><tr>
         <th>品番</th><th style="min-width:120px">商品名</th>
-        <th style="min-width:70px">色</th><th style="min-width:70px">属性</th>${extraCols}
+        <th style="min-width:70px">色</th>
+        ${isFabric?
+        `<th style="text-align:right;min-width:70px">数量(反)</th>
+        <th style="text-align:right;min-width:60px">kg/反</th>
+        <th style="text-align:right;min-width:70px">数量(kg)</th>
+        <th style="text-align:right;min-width:80px">単価(円/kg)</th>`:
+        `<th style="min-width:70px">属性</th>${extraCols}
         <th style="text-align:right;min-width:70px">数量(${fac.unit})</th>
-        <th style="text-align:right;min-width:80px">単価(円)</th>
+        <th style="text-align:right;min-width:80px">単価(円)</th>`}
         <th style="text-align:right;min-width:80px">金額(円)</th>
         <th style="min-width:90px">メモ</th><th style="width:28px"></th>
       </tr></thead>
@@ -597,10 +604,21 @@ function addERow(){
   const s1='style="width:100%;box-sizing:border-box;border:1px solid var(--bdr2);border-radius:4px;padding:3px 5px;font-family:inherit;font-size:12px;"';
   const s2='style="width:100%;box-sizing:border-box;border:1px solid var(--bdr2);border-radius:4px;padding:3px 5px;font-family:inherit;font-size:12px;text-align:right;"';
   const s3='style="width:100%;box-sizing:border-box;border:1px solid var(--bdr);border-radius:4px;padding:3px 5px;font-family:inherit;font-size:12px;background:var(--sur2);color:var(--tx2);"';
-  const extraCells=(EXTRA[fac.process]||[]).map(e=>`<td style="padding:2px 3px"><input ${s1} id="eex_${e.key}_${i}" placeholder="${e.ph||e.label}"></td>`).join('');
+  const isFabricRow=fac.process==='knit'||fac.process==='dye';
+  const extraCells=isFabricRow?'':(EXTRA[fac.process]||[]).map(e=>`<td style="padding:2px 3px"><input ${s1} id="eex_${e.key}_${i}" placeholder="${e.ph||e.label}"></td>`).join('');
   const tr=document.createElement('tr');
   tr.id=`er${i}`;
-  tr.innerHTML=`
+  tr.innerHTML=isFabricRow?`
+    <td style="padding:2px 3px"><input ${s1} id="ec${i}" list="dl_ef" placeholder="品番" onchange="onERowCode(${i})" oninput="onERowCode(${i})"></td>
+    <td style="padding:2px 3px"><input ${s3} id="en${i}" readonly placeholder="自動"></td>
+    <td style="padding:2px 3px"><input ${s1} id="ecol${i}" placeholder="色"></td>
+    <td style="padding:2px 3px"><input ${s2} id="eq${i}" type="number" min="0" placeholder="0" oninput="calcERow(${i})"></td>
+    <td style="padding:2px 3px"><input ${s2} id="ekr${i}" type="number" min="0" step="any" placeholder="例:5.2" oninput="calcERow(${i})"></td>
+    <td style="padding:2px 3px"><input ${s3} id="ekg${i}" type="number" readonly placeholder="自動"></td>
+    <td style="padding:2px 3px"><input ${s2} id="eup${i}" type="number" min="0" placeholder="0" oninput="calcERow(${i})"></td>
+    <td style="padding:2px 3px"><input ${s3} id="eam${i}" type="number" readonly></td>
+    <td style="padding:2px 3px"><input ${s1} id="emo${i}" placeholder="メモ"></td>
+    <td style="padding:2px 3px;text-align:center"><button class="ibtn" onclick="removeERow(${i})">✕</button></td>`:`
     <td style="padding:2px 3px"><input ${s1} id="ec${i}" list="dl_ef" placeholder="品番" onchange="onERowCode(${i})" oninput="onERowCode(${i})"></td>
     <td style="padding:2px 3px"><input ${s3} id="en${i}" readonly placeholder="自動"></td>
     <td style="padding:2px 3px"><input ${s1} id="ecol${i}" placeholder="色"></td>
@@ -635,11 +653,25 @@ function onERowCode(i){
 }
 
 function calcERow(i){
-  const qty=document.getElementById(`eq${i}`)?.value;
-  const up=document.getElementById(`eup${i}`)?.value;
-  const el=document.getElementById(`eam${i}`);
-  const a=calcAmt(qty,up);
-  if(el) el.value=a!==''?a:'';
+  const fid=document.getElementById('ef_factory')?.value;
+  const fac=factories.find(f=>f.id===fid);
+  const isFabric=fac&&(fac.process==='knit'||fac.process==='dye');
+  if(isFabric){
+    const tan=parseFloat(document.getElementById(`eq${i}`)?.value)||0;
+    const rate=parseFloat(document.getElementById(`ekr${i}`)?.value)||0;
+    const kg=tan&&rate?Math.round(tan*rate*1000)/1000:'';
+    const kgEl=document.getElementById(`ekg${i}`);
+    if(kgEl)kgEl.value=kg!==''?kg:'';
+    const up=document.getElementById(`eup${i}`)?.value;
+    const el=document.getElementById(`eam${i}`);
+    if(el)el.value=kg!==''?calcAmt(String(kg),up):'';
+  }else{
+    const qty=document.getElementById(`eq${i}`)?.value;
+    const up=document.getElementById(`eup${i}`)?.value;
+    const el=document.getElementById(`eam${i}`);
+    const a=calcAmt(qty,up);
+    if(el)el.value=a!==''?a:'';
+  }
   updateERowTotal();
 }
 
@@ -665,16 +697,30 @@ async function saveERows(){
     const qty=document.getElementById(`eq${i}`)?.value||'';
     const up=document.getElementById(`eup${i}`)?.value||'';
     const amt=calcAmt(qty,up);
-    const extra={};
-    (EXTRA[proc]||[]).forEach(e=>{const el=document.getElementById(`eex_${e.key}_${i}`);if(el)extra[e.key]=el.value.trim();});
-    recs.push({id:uid(),fac_id:fid,fac_name:fac.name,process:proc,date,
-      item_code:code,
-      color:document.getElementById(`ecol${i}`)?.value?.trim()||'',
-      attr:document.getElementById(`eat${i}`)?.value?.trim()||'',
-      ...extra,
-      qty,unit:fac.unit,unit_price:up,amount:amt!==''?amt:'',
-      memo:document.getElementById(`emo${i}`)?.value?.trim()||'',
-      created_at:new Date().toISOString()});
+    const isFabricSave=proc==='knit'||proc==='dye';
+    if(isFabricSave){
+      const tan=document.getElementById(`eq${i}`)?.value||'';
+      const kgRate=document.getElementById(`ekr${i}`)?.value||'';
+      const kg=document.getElementById(`ekg${i}`)?.value||'';
+      const famount=calcAmt(kg,up);
+      recs.push({id:uid(),fac_id:fid,fac_name:fac.name,process:proc,date,
+        item_code:code,
+        color:document.getElementById(`ecol${i}`)?.value?.trim()||'',
+        qty_tan:tan,kg_rate:kgRate,qty:kg,unit:'kg',unit_price:up,amount:famount!==''?famount:'',
+        memo:document.getElementById(`emo${i}`)?.value?.trim()||'',
+        created_at:new Date().toISOString()});
+    }else{
+      const extra={};
+      (EXTRA[proc]||[]).forEach(e=>{const el=document.getElementById(`eex_${e.key}_${i}`);if(el)extra[e.key]=el.value.trim();});
+      recs.push({id:uid(),fac_id:fid,fac_name:fac.name,process:proc,date,
+        item_code:code,
+        color:document.getElementById(`ecol${i}`)?.value?.trim()||'',
+        attr:document.getElementById(`eat${i}`)?.value?.trim()||'',
+        ...extra,
+        qty,unit:fac.unit,unit_price:up,amount:amt!==''?amt:'',
+        memo:document.getElementById(`emo${i}`)?.value?.trim()||'',
+        created_at:new Date().toISOString()});
+    }
   }
   if(!recs.length){toast('⚠ 品番が入力されていません');return;}
   const btn=document.querySelector('[onclick="saveERows()"]');
