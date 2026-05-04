@@ -1163,7 +1163,7 @@ function renderPriceTable(){
   const rows=prices.filter(p=>{
     if(fid&&p.fac_id!==fid)return false;
     if(proc){const fac=factories.find(f=>f.id===p.fac_id);if(!fac||fac.process!==proc)return false;}
-    if(q&&!p.item_code.toLowerCase().includes(q))return false;
+    if(q&&!(p.product_code||'').toLowerCase().includes(q))return false;
     return true;
   });
   const el=document.getElementById('price-table');
@@ -1191,7 +1191,7 @@ function renderPriceTable(){
       h+=`<tr>
         <td style="font-size:12px;">${fac.name}</td>
         <td>${fac.process?`<span class="badge ${pm.badge||''}">${pm.icon||''} ${pm.label||''}</span>`:'—'}</td>
-        <td class="mono">${pr.item_code}</td>
+        <td class="mono">${pr.product_code||pr.item_code||'—'}</td>
         <td style="text-align:right;padding:3px 6px;">
           <input ${numS} id="pup_${pr.id}" type="number" min="0" value="${pr.unit_price}">
         </td>
