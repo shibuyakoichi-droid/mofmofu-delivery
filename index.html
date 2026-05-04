@@ -465,7 +465,7 @@ async function loadAll(){
       _sb.from('deliveries').select('*').order('created_at',{ascending:false}),
       _sb.from('factories').select('*').order('name'),
       _sb.from('items').select('*').order('item_code'),
-      _sb.from('prices').select('*'),
+      _sb.from('master_prices').select('*'),
     ]);
     if(d.error) throw d.error;
     if(f.error) throw f.error;
@@ -487,9 +487,16 @@ async function loadAll(){
   }
 }
 
+function getProductCode(item_code){
+  const item=items.find(x=>x.item_code===item_code);
+  if(item&&item.memo){try{const m=JSON.parse(item.memo);if(m.parent)return m.parent;}catch(e){}}
+  return item_code;
+}
+
 function getPrice(fac_id, item_code){
   if(!fac_id||!item_code) return '';
-  const p=prices.find(x=>x.fac_id===fac_id && x.item_code===item_code);
+  const product_code=getProductCode(item_code);
+  const p=prices.find(x=>x.fac_id===fac_id && x.product_code===product_code);
   return p?p.unit_price:'';
 }
 
@@ -497,14 +504,15 @@ async function upsertPrice(fac_id, item_code, unit_price){
   if(!_sb||!fac_id||!item_code||unit_price==='') return;
   const up=parseFloat(unit_price);
   if(isNaN(up)||up<=0) return;
-  const exist=prices.find(x=>x.fac_id===fac_id&&x.item_code===item_code);
+  const product_code=getProductCode(item_code);
+  const exist=prices.find(x=>x.fac_id===fac_id&&x.product_code===product_code);
   if(exist){
     exist.unit_price=up;
-    await _sb.from('prices').update({unit_price:up}).eq('id',exist.id);
+    await _sb.from('master_prices').update({unit_price:up}).eq('id',exist.id);
   } else {
-    const rec={id:uid(),fac_id,item_code,unit_price:up};
+    const rec={id:uid(),fac_id,product_code,unit_price:up};
     prices.push(rec);
-    await _sb.from('prices').insert(rec);
+    await _sb.from('master_prices').insert(rec);
   }
 }
 
@@ -1240,7 +1248,7 @@ async function savePriceBulkEdit(){
   }
   let saved=0,errs=0;
   for(const c of changed){
-    const{error}=await _sb.from('prices').update({unit_price:c.unit_price}).eq('id',c.id);
+    const{error}=await _sb.from('master_prices').update({unit_price:c.unit_price}).eq('id',c.id);
     if(!error){
       const idx=prices.findIndex(p=>p.id===c.id);
       if(idx>=0) prices[idx].unit_price=c.unit_price;
@@ -1430,21 +1438,22 @@ function openPriceModal(id){
     if(!price||parseFloat(price)<=0){toast('❌ 単価を入力してください');return false;}
     if(!_sb){toast('❌ Supabase未設定');return false;}
     try {
+      const product_code=getProductCode(code);
       if(pr){
         const i=prices.findIndex(x=>x.id===id);
-        prices[i]={...prices[i],fac_id:fid,item_code:code,unit_price:parseFloat(price)};
-        const {error}=await _sb.from('prices').update({fac_id:fid,item_code:code,unit_price:parseFloat(price)}).eq('id',id);
+        prices[i]={...prices[i],fac_id:fid,product_code,unit_price:parseFloat(price)};
+        const {error}=await _sb.from('master_prices').update({fac_id:fid,product_code,unit_price:parseFloat(price)}).eq('id',id);
         if(error) throw error;
       } else {
-        const exist=prices.find(x=>x.fac_id===fid&&x.item_code===code);
+        const exist=prices.find(x=>x.fac_id===fid&&x.product_code===product_code);
         if(exist){
           exist.unit_price=parseFloat(price);
-          const {error}=await _sb.from('prices').update({unit_price:parseFloat(price)}).eq('id',exist.id);
+          const {error}=await _sb.from('master_prices').update({unit_price:parseFloat(price)}).eq('id',exist.id);
           if(error) throw error;
         } else {
-          const rec={id:uid(),fac_id:fid,item_code:code,unit_price:parseFloat(price)};
+          const rec={id:uid(),fac_id:fid,product_code,unit_price:parseFloat(price)};
           prices.push(rec);
-          const {error}=await _sb.from('prices').insert(rec);
+          const {error}=await _sb.from('master_prices').insert(rec);
           if(error) throw error;
         }
       }
@@ -1466,7 +1475,7 @@ async function delPrice(id){
   if(!confirm('この単価を削除しますか？'))return;
   if(!_sb){toast('❌ Supabase未設定');return;}
   try {
-    const {error}=await _sb.from('prices').delete().eq('id',id);
+    const {error}=await _sb.from('master_prices').delete().eq('id',id);
     if(error) throw error;
     prices=prices.filter(p=>p.id!==id);
     renderPriceTable();toast('🗑 削除しました');
