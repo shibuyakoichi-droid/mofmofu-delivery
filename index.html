@@ -464,7 +464,7 @@ async function loadAll(){
     const [d,f,i,p] = await Promise.all([
       _sb.from('deliveries').select('*').order('created_at',{ascending:false}),
       _sb.from('factories').select('*').order('name'),
-      _sb.from('items').select('*').order('item_code'),
+      _sb.from('items').select('*').order('item_code').limit(5000),
       _sb.from('master_prices').select('*'),
     ]);
     if(d.error) throw d.error;
@@ -1213,7 +1213,7 @@ function renderPriceTable(){
     h+=`<tr>
       <td style="font-size:12px;">${fac.name}</td>
       <td>${fac.process?`<span class="badge ${pm.badge||''}">${pm.icon||''} ${pm.label||''}</span>`:'—'}</td>
-      <td class="mono">${pr.item_code}</td>
+      <td class="mono">${pr.product_code||pr.item_code||'—'}</td>
       <td class="r" style="font-weight:700;">¥${fmt(pr.unit_price)}<span style="font-size:10px;color:var(--tx3);font-weight:400;">/${fac.unit}</span></td>
       <td style="font-size:11px;color:var(--tx2);">${fac.unit||'—'}</td>
       <td style="text-align:right;white-space:nowrap;">
@@ -1425,7 +1425,7 @@ function openPriceModal(id){
       <select id="pm_fac_m" onchange="onPriceFacChange()">${fOpts}</select></div>
     <div id="pm_unit_area"></div>
     <div class="fg"><label>品番 <span class="req">*</span></label>
-      <input type="text" id="pm_code" list="dl_pm" value="${pr?pr.item_code:''}" placeholder="例：baby-leg-k-1"></div>
+      <input type="text" id="pm_code" list="dl_pm" value="${pr?pr.product_code||pr.item_code||'':''}" placeholder="例：baby-leg-k-1"></div>
     <div class="fg"><label>単価（円）<span class="req">*</span></label>
       <input type="number" id="pm_price" value="${pr?pr.unit_price:''}" placeholder="0" min="0"></div>`;
   onPriceFacChange();
