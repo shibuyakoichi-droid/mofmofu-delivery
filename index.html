@@ -496,7 +496,10 @@ function getProductCode(item_code){
 function getPrice(fac_id, item_code){
   if(!fac_id||!item_code) return '';
   const product_code=getProductCode(item_code);
-  const p=prices.find(x=>x.fac_id===fac_id && x.product_code===product_code);
+  // product_code(商品管理番号)で検索、次にitem_codeで検索
+  const p=prices.find(x=>x.fac_id===fac_id && x.product_code===product_code)
+         ||prices.find(x=>x.fac_id===fac_id && x.product_code===item_code);
+  console.log('getPrice:', fac_id, item_code, '→', product_code, '→', p?p.unit_price:'なし', '(prices:'+prices.length+'件, items:'+items.length+'件)');
   return p?p.unit_price:'';
 }
 
