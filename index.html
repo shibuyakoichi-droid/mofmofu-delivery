@@ -625,8 +625,8 @@ function addERow(){
     <td style="padding:2px 3px"><input ${s1} id="ecol${i}" placeholder="色"></td>
     <td style="padding:2px 3px"><input ${s2} id="eq${i}" type="number" min="0" placeholder="0" oninput="calcERow(${i})"></td>
     <td style="padding:2px 3px"><input ${s2} id="ekr${i}" type="number" min="0" step="any" placeholder="例:5.2" oninput="calcERow(${i})"></td>
-    <td style="padding:2px 3px"><input ${s3} id="ekg${i}" type="number" readonly placeholder="自動"></td>
-    <td style="padding:2px 3px"><input ${s2} id="eup${i}" type="number" min="0" placeholder="0" oninput="calcERow(${i})"></td>
+    <td style="padding:2px 3px"><input ${s2} id="ekg${i}" type="number" min="0" step="any" placeholder="反×kg/反で自動" oninput="calcERowFromKg(${i})"></td>
+    <td style="padding:2px 3px"><input ${s2} id="eup${i}" type="number" min="0" placeholder="0" oninput="calcERowFromKg(${i})"></td>
     <td style="padding:2px 3px"><input ${s3} id="eam${i}" type="number" readonly></td>
     <td style="padding:2px 3px"><input ${s1} id="emo${i}" placeholder="メモ"></td>
     <td style="padding:2px 3px;text-align:center"><button class="ibtn" onclick="removeERow(${i})">✕</button></td>`:`
@@ -670,12 +670,12 @@ function calcERow(i){
   if(isFabric){
     const tan=parseFloat(document.getElementById(`eq${i}`)?.value)||0;
     const rate=parseFloat(document.getElementById(`ekr${i}`)?.value)||0;
-    const kg=tan&&rate?Math.round(tan*rate*1000)/1000:'';
-    const kgEl=document.getElementById(`ekg${i}`);
-    if(kgEl)kgEl.value=kg!==''?kg:'';
-    const up=document.getElementById(`eup${i}`)?.value;
-    const el=document.getElementById(`eam${i}`);
-    if(el)el.value=kg!==''?calcAmt(String(kg),up):'';
+    if(tan&&rate){
+      const kg=Math.round(tan*rate*1000)/1000;
+      const kgEl=document.getElementById(`ekg${i}`);
+      if(kgEl) kgEl.value=kg;
+    }
+    calcERowFromKg(i);
   }else{
     const qty=document.getElementById(`eq${i}`)?.value;
     const up=document.getElementById(`eup${i}`)?.value;
@@ -683,6 +683,14 @@ function calcERow(i){
     const a=calcAmt(qty,up);
     if(el)el.value=a!==''?a:'';
   }
+  updateERowTotal();
+}
+
+function calcERowFromKg(i){
+  const kg=document.getElementById(`ekg${i}`)?.value;
+  const up=document.getElementById(`eup${i}`)?.value;
+  const el=document.getElementById(`eam${i}`);
+  if(el) el.value=calcAmt(String(kg||''),up);
   updateERowTotal();
 }
 
